@@ -43,14 +43,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # The frontend loads the panel's web component from the module URL and
     # creates the registered element. The panel renders the section skeleton
     # of the user's existing dashboard; later tickets fill the sections.
-    await async_register_panel(
-        hass,
-        frontend_url_path=PANEL_FRONTEND_URL_PATH,
-        webcomponent_name=PANEL_WEBCOMPONENT_NAME,
-        sidebar_title="Growhelper",
-        sidebar_icon="mdi:cannabis",
-        module_url=PANEL_MODULE_URL,
-    )
+    try:
+        await async_register_panel(
+            hass,
+            frontend_url_path=PANEL_FRONTEND_URL_PATH,
+            webcomponent_name=PANEL_WEBCOMPONENT_NAME,
+            sidebar_title="Growhelper",
+            sidebar_icon="mdi:cannabis",
+            module_url=PANEL_MODULE_URL,
+        )
+    except ValueError as e:
+        # Panel already registered (e.g., during reload)
+        # This is expected and safe to ignore
+        if "Overwriting panel" in str(e):
+            pass
+        else:
+            raise
     return True
 
 

@@ -1,0 +1,57 @@
+# Growhelper services for Grow Diary management
+# These services are registered programmatically in services.py, but this file
+# provides the YAML definitions for Home Assistant's service discovery.
+
+set_growth_phase:
+  name: Set Growth Phase
+  description: Apply the Target Profile for the specified Growth Phase by writing values to input helpers (ADR-0002).
+  fields:
+    phase:
+      name: Phase
+      description: The Growth Phase to set (early-veg, late-veg, late-bloom, dry, off)
+      required: true
+      example: early-veg
+      selector:
+        select:
+          options:
+            - early-veg
+            - late-veg
+            - late-bloom
+            - dry
+            - off
+
+start_grow_run:
+  name: Start Grow Run
+  description: Create a new Grow Run with diary file, mark it active, and set phase to early-veg.
+  fields:
+    name:
+      name: Run Name
+      description: Optional custom name for the Grow Run (default: date-based name)
+      required: false
+      example: my_first_grow_run
+
+add_diary_entry:
+  name: Add Diary Entry
+  description: Append an entry to the active Grow Run's diary file in ADR-0001 format.
+  fields:
+    note:
+      name: Note
+      description: The note text to add to the diary
+      required: true
+      example: "Plants watered"
+    plant_tag:
+      name: Plant Tag
+      description: The plant tag for the entry (default: "all" for box-level events)
+      required: false
+      default: all
+      example: "Plant 1"
+    event_title:
+      name: Event Title
+      description: Optional event title for a subheader
+      required: false
+      example: "Watering"
+    date:
+      name: Date
+      description: Optional date for the entry (default: current date, format DD.MM.YYYY or ISO)
+      required: false
+      example: "15.10.2024"
