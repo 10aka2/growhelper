@@ -84,3 +84,24 @@ MAX_PLANTS: int = 3
 
 # Service names for the Growhelper integration.
 SERVICE_SET_GROWTH_PHASE = "set_growth_phase"
+SERVICE_START_GROW_RUN = "start_grow_run"
+SERVICE_ADD_DIARY_ENTRY = "add_diary_entry"
+
+# Grow Diary storage configuration.
+# Diary files are stored under the Home Assistant config directory.
+GROW_DIARY_DIRECTORY = "growhelper"
+GROW_DIARY_FILE_EXTENSION = ".md"
+
+# Active Grow Run tracking.
+# The active run's filename is stored in the config entry options.
+CONF_ACTIVE_GROW_RUN = "active_grow_run"
+
+# Default first Grow Run name.
+DEFAULT_FIRST_GROW_RUN_NAME = "grow_run_1"
+
+# Grow Diary entry format constants (ADR-0001).
+DIARY_DATE_HEADER_PREFIX = "## "
+DIARY_EVENT_SUBHEADER_PREFIX = "#### "
+DIARY_ENTRY_BULLET_PREFIX = "- ["
+DIARY_ENTRY_ALL_TAG = "all"
+DIARY_ENTRY_SEPARATOR = "---"

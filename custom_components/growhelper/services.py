@@ -2,10 +2,15 @@
 
 v1 bridge: when the Growth Phase changes, the service writes the user's existing
 input helpers (ADR-0002) so the existing automations keep working untouched.
+
+This module also provides the Grow Diary services:
+- start_grow_run: Creates a new Grow Run, marks it active, sets phase to early-veg
+- add_diary_entry: Appends an entry to the active Grow Run's diary file in ADR-0001 format
 """
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 import voluptuous as vol
@@ -18,7 +23,10 @@ from .const import (
     DOMAIN,
     GROWTH_PHASES,
     SERVICE_SET_GROWTH_PHASE,
+    SERVICE_START_GROW_RUN,
+    SERVICE_ADD_DIARY_ENTRY,
 )
+from . import grow_diary
 
 
 async def async_setup_services(
@@ -150,5 +158,110 @@ async def async_setup_services(
         handle_set_growth_phase,
         schema=vol.Schema({
             vol.Required("phase"): vol.In(GROWTH_PHASES),
+        }),
+    )
+    
+    async def handle_start_grow_run(call: ServiceCall) -> dict[str, Any]:
+        """Handle the start_grow_run service call.
+        
+        Creates a new Grow Run with an empty diary file, marks it as active,
+        and sets the Growth Phase to 'early-veg'.
+        
+        Args:
+            call: Service call with optional 'name' parameter for custom run name
+            
+        Returns:
+            Dictionary with 'run_name' and 'file_path' of the created Grow Run
+            
+        Raises:
+            ValueError: If a Grow Run with the same name already exists
+        """
+        custom_name = call.data.get("name")
+        
+        run_name, file_path = await grow_diary.async_start_grow_run(
+            hass, entry, run_name=custom_name
+        )
+        
+        return {
+            "run_name": run_name,
+            "file_path": str(file_path),
+        }
+    
+    # Register the start_grow_run service
+    service.async_register_admin_service(
+        hass,
+        DOMAIN,
+        SERVICE_START_GROW_RUN,
+        handle_start_grow_run,
+        schema=vol.Schema({
+            vol.Optional("name"): str,
+        }),
+    )
+    
+    async def handle_add_diary_entry(call: ServiceCall) -> dict[str, Any]:
+        """Handle the add_diary_entry service call.
+        
+        Appends an entry to the active Grow Run's diary file in ADR-0001 format.
+        The entry includes a date header, optional event title, note bullet with
+        plant tag, and separator.
+        
+        Args:
+            call: Service call with 'note', optional 'plant_tag', 'event_title', 'date'
+            
+        Returns:
+            Dictionary with 'file_path' and 'entry' details
+            
+        Raises:
+            ValueError: If no Grow Run is currently active
+            FileNotFoundError: If the active Grow Run's diary file doesn't exist
+        """
+        note = call.data.get("note")
+        plant_tag = call.data.get("plant_tag", "all")
+        event_title = call.data.get("event_title")
+        date_str = call.data.get("date")
+        
+        # Parse date if provided
+        entry_date = None
+        if date_str:
+            try:
+                # Try to parse various date formats
+                # ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS
+                if "T" in date_str:
+                    entry_date = datetime.fromisoformat(date_str)
+                else:
+                    # Try DD.MM.YYYY format (ADR-0001)
+                    entry_date = datetime.strptime(date_str, "%d.%m.%Y")
+            except ValueError:
+                # If parsing fails, use current date
+                entry_date = None
+        
+        file_path = await grow_diary.async_append_diary_entry(
+            hass,
+            entry,
+            note=note,
+            plant_tag=plant_tag,
+            event_title=event_title,
+            date=entry_date,
+        )
+        
+        return {
+            "file_path": str(file_path),
+            "note": note,
+            "plant_tag": plant_tag,
+            "event_title": event_title,
+            "date": date_str,
+        }
+    
+    # Register the add_diary_entry service
+    service.async_register_admin_service(
+        hass,
+        DOMAIN,
+        SERVICE_ADD_DIARY_ENTRY,
+        handle_add_diary_entry,
+        schema=vol.Schema({
+            vol.Required("note"): str,
+            vol.Optional("plant_tag", default="all"): str,
+            vol.Optional("event_title"): str,
+            vol.Optional("date"): str,
         }),
     )
