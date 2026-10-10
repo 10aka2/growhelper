@@ -41,3 +41,30 @@ ENTITY_ROLES: dict[str, tuple[list[str], bool]] = {
 
 # Selectable camera rotations in degrees.
 CAMERA_ROTATIONS: tuple[str, ...] = ("0", "90", "180", "270")
+
+# Growth Phases: the single active cultivation stage of a Grow Run.
+# Exactly one phase is active at a time (ADR-0002).
+GROWTH_PHASES: tuple[str, ...] = (
+    "early-veg",
+    "late-veg",
+    "late-bloom",
+    "dry",
+    "off",
+)
+
+# Target Profile field names for each range and time group.
+# Each Growth Phase has one Target Profile with these fields.
+TARGET_PROFILE_FIELDS: tuple[str, ...] = (
+    # Temperature range (degrees Celsius)
+    "temperature_lower",
+    "temperature_upper",
+    # Humidity range (percentage)
+    "humidity_lower",
+    "humidity_upper",
+    # VPD range (kPa)
+    "vpd_lower",
+    "vpd_upper",
+    # Light schedule (time strings HH:MM)
+    "light_on_time",
+    "light_off_time",
+)
