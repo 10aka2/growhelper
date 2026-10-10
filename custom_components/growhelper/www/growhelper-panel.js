@@ -1,72 +1,856 @@
-var H=globalThis,M=H.ShadowRoot&&(H.ShadyCSS===void 0||H.ShadyCSS.nativeShadow)&&"adoptedStyleSheets"in Document.prototype&&"replace"in CSSStyleSheet.prototype,k=Symbol(),X=new WeakMap,b=class{constructor(t,e,s){if(this._$cssResult$=!0,s!==k)throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");this.cssText=t,this.t=e}get styleSheet(){let t=this.o,e=this.t;if(M&&t===void 0){let s=e!==void 0&&e.length===1;s&&(t=X.get(e)),t===void 0&&((this.o=t=new CSSStyleSheet).replaceSync(this.cssText),s&&X.set(e,t))}return t}toString(){return this.cssText}},Y=r=>new b(typeof r=="string"?r:r+"",void 0,k),D=(r,...t)=>{let e=r.length===1?r[0]:t.reduce((s,i,o)=>s+(n=>{if(n._$cssResult$===!0)return n.cssText;if(typeof n=="number")return n;throw Error("Value passed to 'css' function must be a 'css' function result: "+n+". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.")})(i)+r[o+1],r[0]);return new b(e,r,k)},tt=(r,t)=>{if(M)r.adoptedStyleSheets=t.map(e=>e instanceof CSSStyleSheet?e:e.styleSheet);else for(let e of t){let s=document.createElement("style"),i=H.litNonce;i!==void 0&&s.setAttribute("nonce",i),s.textContent=e.cssText,r.appendChild(s)}},z=M?r=>r:r=>r instanceof CSSStyleSheet?(t=>{let e="";for(let s of t.cssRules)e+=s.cssText;return Y(e)})(r):r;var{is:mt,defineProperty:ft,getOwnPropertyDescriptor:At,getOwnPropertyNames:gt,getOwnPropertySymbols:yt,getPrototypeOf:vt}=Object,R=globalThis,et=R.trustedTypes,St=et?et.emptyScript:"",Et=R.reactiveElementPolyfillSupport,x=(r,t)=>r,j={toAttribute(r,t){switch(t){case Boolean:r=r?St:null;break;case Object:case Array:r=r==null?r:JSON.stringify(r)}return r},fromAttribute(r,t){let e=r;switch(t){case Boolean:e=r!==null;break;case Number:e=r===null?null:Number(r);break;case Object:case Array:try{e=JSON.parse(r)}catch{e=null}}return e}},it=(r,t)=>!mt(r,t),st={attribute:!0,type:String,converter:j,reflect:!1,useDefault:!1,hasChanged:it};Symbol.metadata??=Symbol("metadata"),R.litPropertyMetadata??=new WeakMap;var $=class extends HTMLElement{static addInitializer(t){this._$Ei(),(this.l??=[]).push(t)}static get observedAttributes(){return this.finalize(),this._$Eh&&[...this._$Eh.keys()]}static createProperty(t,e=st){if(e.state&&(e.attribute=!1),this._$Ei(),this.prototype.hasOwnProperty(t)&&((e=Object.create(e)).wrapped=!0),this.elementProperties.set(t,e),!e.noAccessor){let s=Symbol(),i=this.getPropertyDescriptor(t,s,e);i!==void 0&&ft(this.prototype,t,i)}}static getPropertyDescriptor(t,e,s){let{get:i,set:o}=At(this.prototype,t)??{get(){return this[e]},set(n){this[e]=n}};return{get:i,set(n){let l=i?.call(this);o?.call(this,n),this.requestUpdate(t,l,s)},configurable:!0,enumerable:!0}}static getPropertyOptions(t){return this.elementProperties.get(t)??st}static _$Ei(){if(this.hasOwnProperty(x("elementProperties")))return;let t=vt(this);t.finalize(),t.l!==void 0&&(this.l=[...t.l]),this.elementProperties=new Map(t.elementProperties)}static finalize(){if(this.hasOwnProperty(x("finalized")))return;if(this.finalized=!0,this._$Ei(),this.hasOwnProperty(x("properties"))){let e=this.properties,s=[...gt(e),...yt(e)];for(let i of s)this.createProperty(i,e[i])}let t=this[Symbol.metadata];if(t!==null){let e=litPropertyMetadata.get(t);if(e!==void 0)for(let[s,i]of e)this.elementProperties.set(s,i)}this._$Eh=new Map;for(let[e,s]of this.elementProperties){let i=this._$Eu(e,s);i!==void 0&&this._$Eh.set(i,e)}this.elementStyles=this.finalizeStyles(this.styles)}static finalizeStyles(t){let e=[];if(Array.isArray(t)){let s=new Set(t.flat(1/0).reverse());for(let i of s)e.unshift(z(i))}else t!==void 0&&e.push(z(t));return e}static _$Eu(t,e){let s=e.attribute;return s===!1?void 0:typeof s=="string"?s:typeof t=="string"?t.toLowerCase():void 0}constructor(){super(),this._$Ep=void 0,this.isUpdatePending=!1,this.hasUpdated=!1,this._$Em=null,this._$Ev()}_$Ev(){this._$ES=new Promise(t=>this.enableUpdating=t),this._$AL=new Map,this._$E_(),this.requestUpdate(),this.constructor.l?.forEach(t=>t(this))}addController(t){(this._$EO??=new Set).add(t),this.renderRoot!==void 0&&this.isConnected&&t.hostConnected?.()}removeController(t){this._$EO?.delete(t)}_$E_(){let t=new Map,e=this.constructor.elementProperties;for(let s of e.keys())this.hasOwnProperty(s)&&(t.set(s,this[s]),delete this[s]);t.size>0&&(this._$Ep=t)}createRenderRoot(){let t=this.shadowRoot??this.attachShadow(this.constructor.shadowRootOptions);return tt(t,this.constructor.elementStyles),t}connectedCallback(){this.renderRoot??=this.createRenderRoot(),this.enableUpdating(!0),this._$EO?.forEach(t=>t.hostConnected?.())}enableUpdating(t){}disconnectedCallback(){this._$EO?.forEach(t=>t.hostDisconnected?.())}attributeChangedCallback(t,e,s){this._$AK(t,s)}_$ET(t,e){let s=this.constructor.elementProperties.get(t),i=this.constructor._$Eu(t,s);if(i!==void 0&&s.reflect===!0){let o=(s.converter?.toAttribute!==void 0?s.converter:j).toAttribute(e,s.type);this._$Em=t,o==null?this.removeAttribute(i):this.setAttribute(i,o),this._$Em=null}}_$AK(t,e){let s=this.constructor,i=s._$Eh.get(t);if(i!==void 0&&this._$Em!==i){let o=s.getPropertyOptions(i),n=typeof o.converter=="function"?{fromAttribute:o.converter}:o.converter?.fromAttribute!==void 0?o.converter:j;this._$Em=i;let l=n.fromAttribute(e,o.type);this[i]=l??this._$Ej?.get(i)??l,this._$Em=null}}requestUpdate(t,e,s,i=!1,o){if(t!==void 0){let n=this.constructor;if(i===!1&&(o=this[t]),s??=n.getPropertyOptions(t),!((s.hasChanged??it)(o,e)||s.useDefault&&s.reflect&&o===this._$Ej?.get(t)&&!this.hasAttribute(n._$Eu(t,s))))return;this.C(t,e,s)}this.isUpdatePending===!1&&(this._$ES=this._$EP())}C(t,e,{useDefault:s,reflect:i,wrapped:o},n){s&&!(this._$Ej??=new Map).has(t)&&(this._$Ej.set(t,n??e??this[t]),o!==!0||n!==void 0)||(this._$AL.has(t)||(this.hasUpdated||s||(e=void 0),this._$AL.set(t,e)),i===!0&&this._$Em!==t&&(this._$Eq??=new Set).add(t))}async _$EP(){this.isUpdatePending=!0;try{await this._$ES}catch(e){Promise.reject(e)}let t=this.scheduleUpdate();return t!=null&&await t,!this.isUpdatePending}scheduleUpdate(){return this.performUpdate()}performUpdate(){if(!this.isUpdatePending)return;if(!this.hasUpdated){if(this.renderRoot??=this.createRenderRoot(),this._$Ep){for(let[i,o]of this._$Ep)this[i]=o;this._$Ep=void 0}let s=this.constructor.elementProperties;if(s.size>0)for(let[i,o]of s){let{wrapped:n}=o,l=this[i];n!==!0||this._$AL.has(i)||l===void 0||this.C(i,void 0,o,l)}}let t=!1,e=this._$AL;try{t=this.shouldUpdate(e),t?(this.willUpdate(e),this._$EO?.forEach(s=>s.hostUpdate?.()),this.update(e)):this._$EM()}catch(s){throw t=!1,this._$EM(),s}t&&this._$AE(e)}willUpdate(t){}_$AE(t){this._$EO?.forEach(e=>e.hostUpdated?.()),this.hasUpdated||(this.hasUpdated=!0,this.firstUpdated(t)),this.updated(t)}_$EM(){this._$AL=new Map,this.isUpdatePending=!1}get updateComplete(){return this.getUpdateComplete()}getUpdateComplete(){return this._$ES}shouldUpdate(t){return!0}update(t){this._$Eq&&=this._$Eq.forEach(e=>this._$ET(e,this[e])),this._$EM()}updated(t){}firstUpdated(t){}};$.elementStyles=[],$.shadowRootOptions={mode:"open"},$[x("elementProperties")]=new Map,$[x("finalized")]=new Map,Et?.({ReactiveElement:$}),(R.reactiveElementVersions??=[]).push("2.1.2");var F=globalThis,rt=r=>r,L=F.trustedTypes,ot=L?L.createPolicy("lit-html",{createHTML:r=>r}):void 0,dt="$lit$",m=`lit$${Math.random().toFixed(9).slice(2)}$`,pt="?"+m,bt=`<${pt}>`,y=document,w=()=>y.createComment(""),P=r=>r===null||typeof r!="object"&&typeof r!="function",J=Array.isArray,xt=r=>J(r)||typeof r?.[Symbol.iterator]=="function",B=`[ 	
-\f\r]`,C=/<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g,nt=/-->/g,ht=/>/g,A=RegExp(`>|${B}(?:([^\\s"'>=/]+)(${B}*=${B}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`,"g"),at=/'/g,lt=/"/g,ut=/^(?:script|style|textarea|title)$/i,Z=r=>(t,...e)=>({_$litType$:r,strings:t,values:e}),N=Z(1),Mt=Z(2),Rt=Z(3),v=Symbol.for("lit-noChange"),d=Symbol.for("lit-nothing"),ct=new WeakMap,g=y.createTreeWalker(y,129);function $t(r,t){if(!J(r)||!r.hasOwnProperty("raw"))throw Error("invalid template strings array");return ot!==void 0?ot.createHTML(t):t}var Ct=(r,t)=>{let e=r.length-1,s=[],i,o=t===2?"<svg>":t===3?"<math>":"",n=C;for(let l=0;l<e;l++){let h=r[l],c,p,a=-1,u=0;for(;u<h.length&&(n.lastIndex=u,p=n.exec(h),p!==null);)u=n.lastIndex,n===C?p[1]==="!--"?n=nt:p[1]!==void 0?n=ht:p[2]!==void 0?(ut.test(p[2])&&(i=RegExp("</"+p[2],"g")),n=A):p[3]!==void 0&&(n=A):n===A?p[0]===">"?(n=i??C,a=-1):p[1]===void 0?a=-2:(a=n.lastIndex-p[2].length,c=p[1],n=p[3]===void 0?A:p[3]==='"'?lt:at):n===lt||n===at?n=A:n===nt||n===ht?n=C:(n=A,i=void 0);let _=n===A&&r[l+1].startsWith("/>")?" ":"";o+=n===C?h+bt:a>=0?(s.push(c),h.slice(0,a)+dt+h.slice(a)+m+_):h+m+(a===-2?l:_)}return[$t(r,o+(r[e]||"<?>")+(t===2?"</svg>":t===3?"</math>":"")),s]},U=class r{constructor({strings:t,_$litType$:e},s){let i;this.parts=[];let o=0,n=0,l=t.length-1,h=this.parts,[c,p]=Ct(t,e);if(this.el=r.createElement(c,s),g.currentNode=this.el.content,e===2||e===3){let a=this.el.content.firstChild;a.replaceWith(...a.childNodes)}for(;(i=g.nextNode())!==null&&h.length<l;){if(i.nodeType===1){if(i.hasAttributes())for(let a of i.getAttributeNames())if(a.endsWith(dt)){let u=p[n++],_=i.getAttribute(a).split(m),T=/([.?@])?(.*)/.exec(u);h.push({type:1,index:o,name:T[2],strings:_,ctor:T[1]==="."?V:T[1]==="?"?W:T[1]==="@"?q:E}),i.removeAttribute(a)}else a.startsWith(m)&&(h.push({type:6,index:o}),i.removeAttribute(a));if(ut.test(i.tagName)){let a=i.textContent.split(m),u=a.length-1;if(u>0){i.textContent=L?L.emptyScript:"";for(let _=0;_<u;_++)i.append(a[_],w()),g.nextNode(),h.push({type:2,index:++o});i.append(a[u],w())}}}else if(i.nodeType===8)if(i.data===pt)h.push({type:2,index:o});else{let a=-1;for(;(a=i.data.indexOf(m,a+1))!==-1;)h.push({type:7,index:o}),a+=m.length-1}o++}}static createElement(t,e){let s=y.createElement("template");return s.innerHTML=t,s}};function S(r,t,e=r,s){if(t===v)return t;let i=s!==void 0?e._$Co?.[s]:e._$Cl,o=P(t)?void 0:t._$litDirective$;return i?.constructor!==o&&(i?._$AO?.(!1),o===void 0?i=void 0:(i=new o(r),i._$AT(r,e,s)),s!==void 0?(e._$Co??=[])[s]=i:e._$Cl=i),i!==void 0&&(t=S(r,i._$AS(r,t.values),i,s)),t}var I=class{constructor(t,e){this._$AV=[],this._$AN=void 0,this._$AD=t,this._$AM=e}get parentNode(){return this._$AM.parentNode}get _$AU(){return this._$AM._$AU}u(t){let{el:{content:e},parts:s}=this._$AD,i=(t?.creationScope??y).importNode(e,!0);g.currentNode=i;let o=g.nextNode(),n=0,l=0,h=s[0];for(;h!==void 0;){if(n===h.index){let c;h.type===2?c=new O(o,o.nextSibling,this,t):h.type===1?c=new h.ctor(o,h.name,h.strings,this,t):h.type===6&&(c=new K(o,this,t)),this._$AV.push(c),h=s[++l]}n!==h?.index&&(o=g.nextNode(),n++)}return g.currentNode=y,i}p(t){let e=0;for(let s of this._$AV)s!==void 0&&(s.strings!==void 0?(s._$AI(t,s,e),e+=s.strings.length-2):s._$AI(t[e])),e++}},O=class r{get _$AU(){return this._$AM?._$AU??this._$Cv}constructor(t,e,s,i){this.type=2,this._$AH=d,this._$AN=void 0,this._$AA=t,this._$AB=e,this._$AM=s,this.options=i,this._$Cv=i?.isConnected??!0}get parentNode(){let t=this._$AA.parentNode,e=this._$AM;return e!==void 0&&t?.nodeType===11&&(t=e.parentNode),t}get startNode(){return this._$AA}get endNode(){return this._$AB}_$AI(t,e=this){t=S(this,t,e),P(t)?t===d||t==null||t===""?(this._$AH!==d&&this._$AR(),this._$AH=d):t!==this._$AH&&t!==v&&this._(t):t._$litType$!==void 0?this.$(t):t.nodeType!==void 0?this.T(t):xt(t)?this.k(t):this._(t)}O(t){return this._$AA.parentNode.insertBefore(t,this._$AB)}T(t){this._$AH!==t&&(this._$AR(),this._$AH=this.O(t))}_(t){this._$AH!==d&&P(this._$AH)?this._$AA.nextSibling.data=t:this.T(y.createTextNode(t)),this._$AH=t}$(t){let{values:e,_$litType$:s}=t,i=typeof s=="number"?this._$AC(t):(s.el===void 0&&(s.el=U.createElement($t(s.h,s.h[0]),this.options)),s);if(this._$AH?._$AD===i)this._$AH.p(e);else{let o=new I(i,this),n=o.u(this.options);o.p(e),this.T(n),this._$AH=o}}_$AC(t){let e=ct.get(t.strings);return e===void 0&&ct.set(t.strings,e=new U(t)),e}k(t){J(this._$AH)||(this._$AH=[],this._$AR());let e=this._$AH,s,i=0;for(let o of t)i===e.length?e.push(s=new r(this.O(w()),this.O(w()),this,this.options)):s=e[i],s._$AI(o),i++;i<e.length&&(this._$AR(s&&s._$AB.nextSibling,i),e.length=i)}_$AR(t=this._$AA.nextSibling,e){for(this._$AP?.(!1,!0,e);t!==this._$AB;){let s=rt(t).nextSibling;rt(t).remove(),t=s}}setConnected(t){this._$AM===void 0&&(this._$Cv=t,this._$AP?.(t))}},E=class{get tagName(){return this.element.tagName}get _$AU(){return this._$AM._$AU}constructor(t,e,s,i,o){this.type=1,this._$AH=d,this._$AN=void 0,this.element=t,this.name=e,this._$AM=i,this.options=o,s.length>2||s[0]!==""||s[1]!==""?(this._$AH=Array(s.length-1).fill(new String),this.strings=s):this._$AH=d}_$AI(t,e=this,s,i){let o=this.strings,n=!1;if(o===void 0)t=S(this,t,e,0),n=!P(t)||t!==this._$AH&&t!==v,n&&(this._$AH=t);else{let l=t,h,c;for(t=o[0],h=0;h<o.length-1;h++)c=S(this,l[s+h],e,h),c===v&&(c=this._$AH[h]),n||=!P(c)||c!==this._$AH[h],c===d?t=d:t!==d&&(t+=(c??"")+o[h+1]),this._$AH[h]=c}n&&!i&&this.j(t)}j(t){t===d?this.element.removeAttribute(this.name):this.element.setAttribute(this.name,t??"")}},V=class extends E{constructor(){super(...arguments),this.type=3}j(t){this.element[this.name]=t===d?void 0:t}},W=class extends E{constructor(){super(...arguments),this.type=4}j(t){this.element.toggleAttribute(this.name,!!t&&t!==d)}},q=class extends E{constructor(t,e,s,i,o){super(t,e,s,i,o),this.type=5}_$AI(t,e=this){if((t=S(this,t,e,0)??d)===v)return;let s=this._$AH,i=t===d&&s!==d||t.capture!==s.capture||t.once!==s.once||t.passive!==s.passive,o=t!==d&&(s===d||i);i&&this.element.removeEventListener(this.name,this,s),o&&this.element.addEventListener(this.name,this,t),this._$AH=t}handleEvent(t){typeof this._$AH=="function"?this._$AH.call(this.options?.host??this.element,t):this._$AH.handleEvent(t)}},K=class{constructor(t,e,s){this.element=t,this.type=6,this._$AN=void 0,this._$AM=e,this.options=s}get _$AU(){return this._$AM._$AU}_$AI(t){S(this,t)}};var wt=F.litHtmlPolyfillSupport;wt?.(U,O),(F.litHtmlVersions??=[]).push("3.3.3");var _t=(r,t,e)=>{let s=e?.renderBefore??t,i=s._$litPart$;if(i===void 0){let o=e?.renderBefore??null;s._$litPart$=i=new O(t.insertBefore(w(),o),o,void 0,e??{})}return i._$AI(r),i};var G=globalThis,f=class extends ${constructor(){super(...arguments),this.renderOptions={host:this},this._$Do=void 0}createRenderRoot(){let t=super.createRenderRoot();return this.renderOptions.renderBefore??=t.firstChild,t}update(t){let e=this.render();this.hasUpdated||(this.renderOptions.isConnected=this.isConnected),super.update(t),this._$Do=_t(e,this.renderRoot,this.renderOptions)}connectedCallback(){super.connectedCallback(),this._$Do?.setConnected(!0)}disconnectedCallback(){super.disconnectedCallback(),this._$Do?.setConnected(!1)}render(){return v}};f._$litElement$=!0,f.finalized=!0,G.litElementHydrateSupport?.({LitElement:f});var Pt=G.litElementPolyfillSupport;Pt?.({LitElement:f});(G.litElementVersions??=[]).push("4.2.2");var Ut=[{id:"overview",title:"Übersicht",cards:[{id:"phases",title:"Phasen"},{id:"camera",title:"Kamera"},{id:"environment",title:"Umgebung"},{id:"diary",title:"Tagebuch"}]},{id:"light-plants",title:"Licht & Pflanzen",cards:[]},{id:"climate",title:"Klima",cards:[]},{id:"vpd",title:"VPD (Dampfdruckdefizit)",cards:[]}],Q=class extends f{static styles=D`
-    :host {
-      display: block;
-      padding: 16px;
-      max-width: 1200px;
-      margin: 0 auto;
+/**
+ * Growhelper Panel - Box Sections (Camera, Environment, VPD, Climate)
+ * 
+ * Issue #8: Panel: box sections (camera, environment, VPD, climate)
+ * 
+ * This web component renders the Grow Box panel with:
+ * - Live camera view with configured rotation
+ * - Environment section (canopy temperature, humidity with threshold lines)
+ * - VPD section with current value, target range, and reference zone bands
+ * - Climate devices (exhaust fan, ventilation fan, humidifier, dehumidifier) with on/off state and power
+ * - Light schedule with on/off times and state
+ */
+
+// Use the global LitElement from Home Assistant's frontend
+// Home Assistant already loads Lit, so we can use the global constructor
+var LitElement = window.LitElement || window.customElements.get('ha-card')?.constructor?.superclass;
+
+// If LitElement is not available, try to load it from HA's resources
+if (!LitElement) {
+  try {
+    LitElement = customElements.get('ha-card').constructor;
+  } catch (e) {
+    console.error('LitElement not found, trying fallback...');
+  }
+}
+
+// VPD reference zone bands (kPa) - from the PRD
+var VPD_ZONES = {
+  'under-transpiration': { max: 0.4, label: 'Unter-Transpiration', color: '#ff0000' },
+  'early-veg': { min: 0.4, max: 0.8, label: 'Early Veg', color: '#ffa500' },
+  'late-veg': { min: 0.8, max: 1.2, label: 'Late Veg', color: '#ffff00' },
+  'mid-late-flower': { min: 1.2, max: 1.6, label: 'Mid-Late Flower', color: '#00ff00' },
+  'danger-zone': { min: 1.6, label: 'Gefahrenzone', color: '#ff00ff' }
+};
+
+// Camera rotation styles
+var CAMERA_ROTATION_STYLES = {
+  '0': 'rotate(0deg)',
+  '90': 'rotate(90deg)',
+  '180': 'rotate(180deg)',
+  '270': 'rotate(270deg)'
+};
+
+// Simple template tag for HTML
+var html = function(strings, ...values) {
+  var result = strings[0];
+  for (var i = 0; i < values.length; i++) {
+    result += String(values[i]) + strings[i + 1];
+  }
+  return result;
+};
+
+// Simple CSS tag
+var css = function(strings, ...values) {
+  var result = strings[0];
+  for (var i = 0; i < values.length; i++) {
+    result += String(values[i]) + strings[i + 1];
+  }
+  return result;
+};
+
+// Growhelper Panel Class
+var GrowhelperPanel = class extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._config = {};
+    this._entityStates = {};
+    this._historyData = {};
+    this._growthPhase = 'off';
+    this._targetProfile = {};
+    this._cameraImage = '';
+    this._activeGrowRun = '';
+    this._hass = window.hass || {};
+  }
+
+  connectedCallback() {
+    this._loadConfig();
+    this._loadEntityStates();
+    this._setupHassConnection();
+    this._render();
+  }
+
+  disconnectedCallback() {
+    this._cleanupHassConnection();
+  }
+
+  attributeChangedCallback(name, oldValue, newValue) {
+    this._render();
+  }
+
+  _loadConfig() {
+    if (window.hass) {
+      this._hass = window.hass;
+      this._loadConfigFromHass();
     }
-    h1 {
-      font-size: 24px;
-      margin: 0 0 16px;
+  }
+
+  _loadConfigFromHass() {
+    if (!this._hass || !this._hass.states) return;
+    
+    // Get the growhelper config entry
+    var configEntry = this._hass.config.entries ? 
+      this._hass.config.entries.find(function(e) { return e.domain === 'growhelper'; }) : null;
+    
+    if (configEntry) {
+      this._config = configEntry.options || {};
+      this._loadTargetProfile();
+      this._loadActiveGrowRun();
     }
-    section {
-      margin-bottom: 24px;
+  }
+
+  _loadTargetProfile() {
+    // Load target profile for the current growth phase
+    var phase = this._growthPhase || this._config.growth_phase || 'early-veg';
+    this._targetProfile = {
+      temperature: {
+        lower: this._config[phase + '_temperature_lower'] || 20,
+        upper: this._config[phase + '_temperature_upper'] || 28
+      },
+      humidity: {
+        lower: this._config[phase + '_humidity_lower'] || 40,
+        upper: this._config[phase + '_humidity_upper'] || 70
+      },
+      vpd: {
+        lower: this._config[phase + '_vpd_lower'] || 0.4,
+        upper: this._config[phase + '_vpd_upper'] || 1.2
+      },
+      light: {
+        on: this._config[phase + '_light_on_time'] || '08:00',
+        off: this._config[phase + '_light_off_time'] || '20:00'
+      }
+    };
+  }
+
+  _loadActiveGrowRun() {
+    this._activeGrowRun = this._config.active_grow_run || '';
+  }
+
+  _loadEntityStates() {
+    if (!this._hass || !this._hass.states) return;
+    
+    // Load all entity states
+    this._entityStates = {};
+    Object.keys(this._hass.states).forEach(function(entityId) {
+      this._entityStates[entityId] = this._hass.states[entityId];
+    }.bind(this));
+    
+    // Load camera image
+    this._loadCameraImage();
+  }
+
+  _setupHassConnection() {
+    if (!window.hass) return;
+    
+    // Listen for state changes
+    if (window.hass.connection) {
+      window.hass.connection.subscribeStates(this._handleStateChange.bind(this));
     }
-    h2 {
-      font-size: 18px;
-      margin: 0 0 8px;
-      padding-bottom: 4px;
-      border-bottom: 1px solid var(--divider-color, #e0e0e0);
+    
+    // Listen for config changes
+    if (window.hass.connection) {
+      window.hass.connection.subscribeConfig(this._handleConfigChange.bind(this));
     }
-    .card {
-      margin-bottom: 12px;
+  }
+
+  _cleanupHassConnection() {
+    if (window.hass?.connection) {
+      try {
+        window.hass.connection.unsubscribeStates(this._handleStateChange.bind(this));
+        window.hass.connection.unsubscribeConfig(this._handleConfigChange.bind(this));
+      } catch (e) {
+        // Ignore unsubscribe errors
+      }
     }
-    h3 {
-      font-size: 15px;
-      margin: 0 0 4px;
+  }
+
+  _handleStateChange() {
+    this._loadEntityStates();
+    this._render();
+  }
+
+  _handleConfigChange() {
+    this._loadConfigFromHass();
+    this._render();
+  }
+
+  _loadCameraImage() {
+    if (!this._config.camera) return;
+    
+    var cameraEntity = this._entityStates[this._config.camera];
+    if (cameraEntity && cameraEntity.attributes && cameraEntity.attributes.entity_picture) {
+      this._cameraImage = cameraEntity.attributes.entity_picture;
+    } else {
+      this._cameraImage = '';
     }
-    .empty {
-      color: var(--secondary-text-color, #727272);
-      font-style: italic;
+  }
+
+  _getEntityState(entityId) {
+    return this._entityStates[entityId];
+  }
+
+  _getEntityValue(entityId) {
+    var state = this._getEntityState(entityId);
+    return state ? state.state : null;
+  }
+
+  _getEntityAttribute(entityId, attribute) {
+    var state = this._getEntityState(entityId);
+    return state ? state.attributes && state.attributes[attribute] : null;
+  }
+
+  _getGrowthPhase() {
+    // Check which growth phase boolean is on
+    var phases = ['early-veg', 'late-veg', 'late-bloom', 'dry', 'off'];
+    for (var i = 0; i < phases.length; i++) {
+      var phase = phases[i];
+      var entityKey = 'growth_phase_' + phase.replace(/-/g, '_');
+      var entityId = this._config[entityKey];
+      if (entityId && this._getEntityValue(entityId) === 'on') {
+        return phase;
+      }
     }
-  `;render(){return N`
+    return 'off';
+  }
+
+  _getCameraRotationStyle() {
+    var rotation = this._config.camera_rotation || '0';
+    return CAMERA_ROTATION_STYLES[rotation] || 'rotate(0deg)';
+  }
+
+  _isInRange(value, min, max) {
+    if (value === null || value === undefined) return null;
+    if (min === null || max === null) return null;
+    return value >= min && value <= max;
+  }
+
+  _formatNumber(value, decimals) {
+    if (value === null || value === undefined) return '--';
+    return parseFloat(value).toFixed(decimals || 1);
+  }
+
+  _render() {
+    // Get current growth phase
+    this._growthPhase = this._getGrowthPhase();
+    
+    // Get entity IDs from config
+    var entities = {
+      canopy_temperature: this._config.canopy_temperature,
+      canopy_humidity: this._config.canopy_humidity,
+      vpd_sensor: this._config.vpd_sensor,
+      camera: this._config.camera,
+      humidifier: this._config.humidifier,
+      dehumidifier: this._config.dehumidifier,
+      exhaust_fan: this._config.exhaust_fan,
+      ventilation_fan: this._config.ventilation_fan,
+      grow_light: this._config.grow_light,
+      // Power sensors
+      humidifier_power: this._config.humidifier_power,
+      dehumidifier_power: this._config.dehumidifier_power,
+      exhaust_fan_power: this._config.exhaust_fan_power,
+      ventilation_fan_power: this._config.ventilation_fan_power,
+      grow_light_power: this._config.grow_light_power
+    };
+
+    // Get current values
+    var currentValues = {
+      temperature: this._getEntityValue(entities.canopy_temperature),
+      humidity: this._getEntityValue(entities.canopy_humidity),
+      vpd: this._getEntityValue(entities.vpd_sensor),
+      // Device states
+      humidifier: this._getEntityValue(entities.humidifier),
+      dehumidifier: this._getEntityValue(entities.dehumidifier),
+      exhaust_fan: this._getEntityValue(entities.exhaust_fan),
+      ventilation_fan: this._getEntityValue(entities.ventilation_fan),
+      grow_light: this._getEntityValue(entities.grow_light),
+      // Power values
+      humidifier_power: this._getEntityValue(entities.humidifier_power),
+      dehumidifier_power: this._getEntityValue(entities.dehumidifier_power),
+      exhaust_fan_power: this._getEntityValue(entities.exhaust_fan_power),
+      ventilation_fan_power: this._getEntityValue(entities.ventilation_fan_power),
+      grow_light_power: this._getEntityValue(entities.grow_light_power)
+    };
+
+    // Check if entities are configured
+    var hasCamera = entities.camera && this._cameraImage;
+    var hasTemperature = entities.canopy_temperature && currentValues.temperature !== null;
+    var hasHumidity = entities.canopy_humidity && currentValues.humidity !== null;
+    var hasVPD = entities.vpd_sensor && currentValues.vpd !== null;
+    var hasDevices = entities.humidifier || entities.dehumidifier || entities.exhaust_fan || entities.ventilation_fan || entities.grow_light;
+
+    // Build the HTML
+    var htmlContent = '
+      <style>
+        :host {
+          display: block;
+          padding: 16px;
+          max-width: 1200px;
+          margin: 0 auto;
+          font-family: var(--ha-font-family, sans-serif);
+        }
+        
+        h1 {
+          font-size: 24px;
+          margin: 0 0 16px;
+          color: var(--primary-text-color, #212121);
+        }
+        
+        section {
+          margin-bottom: 24px;
+          background: var(--card-background-color, #ffffff);
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          overflow: hidden;
+        }
+        
+        h2 {
+          font-size: 18px;
+          margin: 0;
+          padding: 16px 16px 8px;
+          color: var(--primary-text-color, #212121);
+          border-bottom: 1px solid var(--divider-color, #e0e0e0);
+        }
+        
+        .card {
+          padding: 16px;
+        }
+        
+        .empty {
+          color: var(--secondary-text-color, #727272);
+          font-style: italic;
+          padding: 8px 0;
+        }
+        
+        /* Growth Phase */
+        .growth-phase {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 4px 12px;
+          background: var(--primary-color, #03A9F4);
+          color: white;
+          border-radius: 12px;
+          font-size: 14px;
+          font-weight: bold;
+          margin-bottom: 16px;
+        }
+        
+        /* Camera Section */
+        .camera-container {
+          position: relative;
+          overflow: hidden;
+          border-radius: 4px;
+        }
+        
+        .camera-container img {
+          width: 100%;
+          height: auto;
+          display: block;
+          transition: transform 0.3s ease;
+        }
+        
+        .camera-rotation-info {
+          font-size: 12px;
+          color: var(--secondary-text-color, #727272);
+          margin-top: 4px;
+        }
+        
+        /* Environment Section */
+        .environment-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 16px;
+        }
+        
+        .env-card {
+          background: var(--secondary-background-color, #f5f5f5);
+          padding: 12px;
+          border-radius: 4px;
+        }
+        
+        .env-card .label {
+          font-size: 12px;
+          color: var(--secondary-text-color, #727272);
+          margin-bottom: 4px;
+        }
+        
+        .env-card .value {
+          font-size: 20px;
+          font-weight: bold;
+          color: var(--primary-text-color, #212121);
+        }
+        
+        .env-card .unit {
+          font-size: 14px;
+          color: var(--secondary-text-color, #727272);
+          margin-left: 4px;
+        }
+        
+        .threshold-indicator {
+          display: inline-block;
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          margin-left: 8px;
+        }
+        
+        .threshold-indicator.in-range {
+          background-color: #4CAF50;
+        }
+        
+        .threshold-indicator.below-range {
+          background-color: #FF9800;
+        }
+        
+        .threshold-indicator.above-range {
+          background-color: #F44336;
+        }
+        
+        .chart-container {
+          height: 100px;
+          margin-top: 8px;
+        }
+        
+        .chart-placeholder {
+          height: 100%;
+          background: var(--secondary-background-color, #f5f5f5);
+          border-radius: 4px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--secondary-text-color, #727272);
+          font-size: 12px;
+        }
+        
+        /* VPD Section */
+        .vpd-container {
+          display: flex;
+          gap: 24px;
+          align-items: flex-start;
+        }
+        
+        .vpd-value-display {
+          flex: 0 0 200px;
+        }
+        
+        .vpd-value {
+          font-size: 32px;
+          font-weight: bold;
+          color: var(--primary-text-color, #212121);
+        }
+        
+        .vpd-unit {
+          font-size: 16px;
+          color: var(--secondary-text-color, #727272);
+        }
+        
+        .vpd-zones {
+          flex: 1;
+        }
+        
+        .vpd-zone {
+          display: flex;
+          align-items: center;
+          margin-bottom: 8px;
+        }
+        
+        .vpd-zone-color {
+          width: 20px;
+          height: 20px;
+          border-radius: 4px;
+          margin-right: 8px;
+        }
+        
+        .vpd-zone-label {
+          flex: 1;
+          font-size: 14px;
+        }
+        
+        .vpd-zone-range {
+          font-size: 12px;
+          color: var(--secondary-text-color, #727272);
+        }
+        
+        .vpd-current-indicator {
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          border: 2px solid white;
+          box-shadow: 0 0 0 2px currentColor;
+          margin-right: 4px;
+        }
+        
+        .status-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 2px 8px;
+          border-radius: 8px;
+          font-size: 12px;
+          margin-top: 8px;
+        }
+        
+        .status-badge.active {
+          background: #4CAF50;
+          color: white;
+        }
+        
+        .status-badge.inactive {
+          background: #9E9E9E;
+          color: white;
+        }
+        
+        /* Climate Devices Section */
+        .devices-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: 12px;
+        }
+        
+        .device-card {
+          background: var(--secondary-background-color, #f5f5f5);
+          padding: 12px;
+          border-radius: 4px;
+          text-align: center;
+        }
+        
+        .device-icon {
+          font-size: 24px;
+          margin-bottom: 4px;
+        }
+        
+        .device-name {
+          font-size: 12px;
+          color: var(--secondary-text-color, #727272);
+          margin-bottom: 4px;
+        }
+        
+        .device-state {
+          font-size: 14px;
+          font-weight: bold;
+        }
+        
+        .device-state.on {
+          color: #4CAF50;
+        }
+        
+        .device-state.off {
+          color: #F44336;
+        }
+        
+        .device-power {
+          font-size: 12px;
+          color: var(--secondary-text-color, #727272);
+          margin-top: 4px;
+        }
+        
+        /* Light Schedule Section */
+        .light-schedule {
+          display: flex;
+          gap: 16px;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+        
+        .light-time {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        
+        .light-time-icon {
+          font-size: 16px;
+        }
+        
+        .light-time-value {
+          font-size: 14px;
+          font-weight: bold;
+        }
+        
+        .light-state {
+          padding: 4px 12px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: bold;
+        }
+        
+        .light-state.on {
+          background: #4CAF50;
+          color: white;
+        }
+        
+        .light-state.off {
+          background: #F44336;
+          color: white;
+        }
+        
+        /* Responsive */
+        @media (max-width: 600px) {
+          :host {
+            padding: 8px;
+          }
+          
+          h1 {
+            font-size: 20px;
+          }
+          
+          .vpd-container {
+            flex-direction: column;
+          }
+          
+          .vpd-value-display {
+            flex: none;
+            text-align: center;
+          }
+        }
+      </style>
+      
       <h1>Growhelper</h1>
-      ${Ut.map(t=>N`
-          <section data-section=${t.id}>
-            <h2>${t.title}</h2>
-            ${t.cards.length?t.cards.map(e=>N`
-                    <div class="card" data-card=${e.id}>
-                      <h3>${e.title}</h3>
-                      <p class="empty">Noch nicht eingerichtet.</p>
-                    </div>
-                  `):N`<p class="empty">Noch nicht eingerichtet.</p>`}
-          </section>
-        `)}
-    `}};customElements.define("growhelper-panel",Q);
-/*! Bundled license information:
+      
+      <!-- Growth Phase Indicator -->
+      <div class="growth-phase">
+        <span>🌱</span>
+        <span>' + (this._growthPhase === 'off' ? 'Aus' : this._growthPhase) + '</span>
+      </div>
+      
+      <!-- Camera Section -->
+      <section data-section="camera">
+        <h2>📹 Kamera</h2>
+        <div class="card">
+          ' + (hasCamera ? '
+            <div class="camera-container">
+              <img 
+                src="' + this._cameraImage + '" 
+                style="transform: ' + this._getCameraRotationStyle() + ';" 
+                onerror="this.style.display=\'none\'; this.parentNode.innerHTML=\'<p class=\"empty\">Kamera-Bild nicht verfügbar.</p>\'"
+              >
+              <div class="camera-rotation-info">
+                Rotation: ' + (this._config.camera_rotation || '0') + '°
+              </div>
+            </div>
+          ' : '<p class="empty">Keine Kamera konfiguriert oder verfügbar.</p>') + '
+        </div>
+      </section>
+      
+      <!-- Environment Section -->
+      <section data-section="environment">
+        <h2>🌡️ Umgebung</h2>
+        <div class="card">
+          ' + (hasTemperature || hasHumidity ? '
+            <div class="environment-grid">
+              ' + (hasTemperature ? '
+                <div class="env-card">
+                  <div class="label">Temperatur</div>
+                  <div class="value">
+                    ' + this._formatNumber(currentValues.temperature, 1) + '
+                    <span class="unit">°C</span>
+                    ' + (this._isInRange(parseFloat(currentValues.temperature), this._targetProfile.temperature?.lower, this._targetProfile.temperature?.upper) ? '
+                      <span class="threshold-indicator in-range" title="Im Zielbereich"></span>
+                    ' : this._isInRange(parseFloat(currentValues.temperature), this._targetProfile.temperature?.lower, this._targetProfile.temperature?.upper) === false && currentValues.temperature < this._targetProfile.temperature?.lower ? '
+                      <span class="threshold-indicator below-range" title="Unter dem Zielbereich"></span>
+                    ' : '
+                      <span class="threshold-indicator above-range" title="Über dem Zielbereich"></span>
+                    ') + '
+                  </div>
+                  <div class="chart-container">
+                    <div class="chart-placeholder">Temperaturverlauf (24h)</div>
+                  </div>
+                </div>
+              ' : '') + '
+              
+              ' + (hasHumidity ? '
+                <div class="env-card">
+                  <div class="label">Luftfeuchtigkeit</div>
+                  <div class="value">
+                    ' + this._formatNumber(currentValues.humidity, 1) + '
+                    <span class="unit">%</span>
+                    ' + (this._isInRange(parseFloat(currentValues.humidity), this._targetProfile.humidity?.lower, this._targetProfile.humidity?.upper) ? '
+                      <span class="threshold-indicator in-range" title="Im Zielbereich"></span>
+                    ' : this._isInRange(parseFloat(currentValues.humidity), this._targetProfile.humidity?.lower, this._targetProfile.humidity?.upper) === false && currentValues.humidity < this._targetProfile.humidity?.lower ? '
+                      <span class="threshold-indicator below-range" title="Unter dem Zielbereich"></span>
+                    ' : '
+                      <span class="threshold-indicator above-range" title="Über dem Zielbereich"></span>
+                    ') + '
+                  </div>
+                  <div class="chart-container">
+                    <div class="chart-placeholder">Luftfeuchtigkeitsverlauf (24h)</div>
+                  </div>
+                </div>
+              ' : '') + '
+            </div>
+          ' : '<p class="empty">Keine Umgebungs-Sensoren konfiguriert oder verfügbar.</p>') + '
+        </div>
+      </section>
+      
+      <!-- VPD Section -->
+      <section data-section="vpd">
+        <h2>💧 VPD (Dampfdruckdefizit)</h2>
+        <div class="card">
+          ' + (hasVPD ? '
+            <div class="vpd-container">
+              <div class="vpd-value-display">
+                <div class="vpd-value">' + this._formatNumber(currentValues.vpd, 2) + '</div>
+                <div class="vpd-unit">kPa</div>
+                <div class="status-badge ' + (this._isInRange(parseFloat(currentValues.vpd), this._targetProfile.vpd?.lower, this._targetProfile.vpd?.upper) ? 'active' : 'inactive') + '">
+                  ' + (this._isInRange(parseFloat(currentValues.vpd), this._targetProfile.vpd?.lower, this._targetProfile.vpd?.upper) ? 'Im Zielbereich' : 'Außerhalb des Zielbereichs') + '
+                </div>
+              </div>
+              <div class="vpd-zones">
+                <div class="vpd-zone">
+                  <div class="vpd-zone-color" style="background: ' + VPD_ZONES['under-transpiration'].color + ';"></div>
+                  <div class="vpd-zone-label">' + VPD_ZONES['under-transpiration'].label + '</div>
+                  <div class="vpd-zone-range">&lt; ' + VPD_ZONES['under-transpiration'].max + ' kPa</div>
+                  ' + (parseFloat(currentValues.vpd) < VPD_ZONES['under-transpiration'].max ? '<div class="vpd-current-indicator" style="background: ' + VPD_ZONES['under-transpiration'].color + ';"></div>' : '') + '
+                </div>
+                <div class="vpd-zone">
+                  <div class="vpd-zone-color" style="background: ' + VPD_ZONES['early-veg'].color + ';"></div>
+                  <div class="vpd-zone-label">' + VPD_ZONES['early-veg'].label + '</div>
+                  <div class="vpd-zone-range">' + VPD_ZONES['early-veg'].min + '–' + VPD_ZONES['early-veg'].max + ' kPa</div>
+                  ' + (parseFloat(currentValues.vpd) >= VPD_ZONES['early-veg'].min && parseFloat(currentValues.vpd) <= VPD_ZONES['early-veg'].max ? '<div class="vpd-current-indicator" style="background: ' + VPD_ZONES['early-veg'].color + ';"></div>' : '') + '
+                </div>
+                <div class="vpd-zone">
+                  <div class="vpd-zone-color" style="background: ' + VPD_ZONES['late-veg'].color + ';"></div>
+                  <div class="vpd-zone-label">' + VPD_ZONES['late-veg'].label + '</div>
+                  <div class="vpd-zone-range">' + VPD_ZONES['late-veg'].min + '–' + VPD_ZONES['late-veg'].max + ' kPa</div>
+                  ' + (parseFloat(currentValues.vpd) >= VPD_ZONES['late-veg'].min && parseFloat(currentValues.vpd) <= VPD_ZONES['late-veg'].max ? '<div class="vpd-current-indicator" style="background: ' + VPD_ZONES['late-veg'].color + ';"></div>' : '') + '
+                </div>
+                <div class="vpd-zone">
+                  <div class="vpd-zone-color" style="background: ' + VPD_ZONES['mid-late-flower'].color + ';"></div>
+                  <div class="vpd-zone-label">' + VPD_ZONES['mid-late-flower'].label + '</div>
+                  <div class="vpd-zone-range">' + VPD_ZONES['mid-late-flower'].min + '–' + VPD_ZONES['mid-late-flower'].max + ' kPa</div>
+                  ' + (parseFloat(currentValues.vpd) >= VPD_ZONES['mid-late-flower'].min && parseFloat(currentValues.vpd) <= VPD_ZONES['mid-late-flower'].max ? '<div class="vpd-current-indicator" style="background: ' + VPD_ZONES['mid-late-flower'].color + ';"></div>' : '') + '
+                </div>
+                <div class="vpd-zone">
+                  <div class="vpd-zone-color" style="background: ' + VPD_ZONES['danger-zone'].color + ';"></div>
+                  <div class="vpd-zone-label">' + VPD_ZONES['danger-zone'].label + '</div>
+                  <div class="vpd-zone-range">&gt; ' + VPD_ZONES['danger-zone'].min + ' kPa</div>
+                  ' + (parseFloat(currentValues.vpd) >= VPD_ZONES['danger-zone'].min ? '<div class="vpd-current-indicator" style="background: ' + VPD_ZONES['danger-zone'].color + ';"></div>' : '') + '
+                </div>
+              </div>
+            </div>
+            <div class="chart-container">
+              <div class="chart-placeholder">VPD-Verlauf (24h)</div>
+            </div>
+          ' : '<p class="empty">Kein VPD-Sensor konfiguriert oder verfügbar.</p>') + '
+        </div>
+      </section>
+      
+      <!-- Climate Section -->
+      <section data-section="climate">
+        <h2>🌬️ Klima-Geräte</h2>
+        <div class="card">
+          ' + (hasDevices ? '
+            <div class="devices-grid">
+              ' + (entities.humidifier ? '
+                <div class="device-card">
+                  <div class="device-icon">💦</div>
+                  <div class="device-name">Befeuchter</div>
+                  <div class="device-state ' + (currentValues.humidifier === 'on' ? 'on' : 'off') + '">
+                    ' + (currentValues.humidifier === 'on' ? 'EIN' : 'AUS') + '
+                  </div>
+                  ' + (entities.humidifier_power && currentValues.humidifier_power ? '
+                    <div class="device-power">' + currentValues.humidifier_power + ' W</div>
+                  ' : '') + '
+                </div>
+              ' : '') + '
+              
+              ' + (entities.dehumidifier ? '
+                <div class="device-card">
+                  <div class="device-icon">🌬️</div>
+                  <div class="device-name">Entfeuchter</div>
+                  <div class="device-state ' + (currentValues.dehumidifier === 'on' ? 'on' : 'off') + '">
+                    ' + (currentValues.dehumidifier === 'on' ? 'EIN' : 'AUS') + '
+                  </div>
+                  ' + (entities.dehumidifier_power && currentValues.dehumidifier_power ? '
+                    <div class="device-power">' + currentValues.dehumidifier_power + ' W</div>
+                  ' : '') + '
+                </div>
+              ' : '') + '
+              
+              ' + (entities.exhaust_fan ? '
+                <div class="device-card">
+                  <div class="device-icon">💨</div>
+                  <div class="device-name">Abluft</div>
+                  <div class="device-state ' + (currentValues.exhaust_fan === 'on' ? 'on' : 'off') + '">
+                    ' + (currentValues.exhaust_fan === 'on' ? 'EIN' : 'AUS') + '
+                  </div>
+                  ' + (entities.exhaust_fan_power && currentValues.exhaust_fan_power ? '
+                    <div class="device-power">' + currentValues.exhaust_fan_power + ' W</div>
+                  ' : '') + '
+                </div>
+              ' : '') + '
+              
+              ' + (entities.ventilation_fan ? '
+                <div class="device-card">
+                  <div class="device-icon">🌀</div>
+                  <div class="device-name">Belüftung</div>
+                  <div class="device-state ' + (currentValues.ventilation_fan === 'on' ? 'on' : 'off') + '">
+                    ' + (currentValues.ventilation_fan === 'on' ? 'EIN' : 'AUS') + '
+                  </div>
+                  ' + (entities.ventilation_fan_power && currentValues.ventilation_fan_power ? '
+                    <div class="device-power">' + currentValues.ventilation_fan_power + ' W</div>
+                  ' : '') + '
+                </div>
+              ' : '') + '
+            </div>
+          ' : '<p class="empty">Keine Klima-Geräte konfiguriert oder verfügbar.</p>') + '
+        </div>
+      </section>
+      
+      <!-- Light Schedule Section -->
+      <section data-section="light">
+        <h2>💡 Licht-Steuerung</h2>
+        <div class="card">
+          ' + (entities.grow_light ? '
+            <div class="light-schedule">
+              <div class="light-time">
+                <span class="light-time-icon">🌅</span>
+                <span class="light-time-value">' + (this._targetProfile.light?.on || '08:00') + '</span>
+              </div>
+              <div class="light-time">
+                <span class="light-time-icon">🌇</span>
+                <span class="light-time-value">' + (this._targetProfile.light?.off || '20:00') + '</span>
+              </div>
+              <div class="light-state ' + (currentValues.grow_light === 'on' ? 'on' : 'off') + '">
+                ' + (currentValues.grow_light === 'on' ? 'EINGESCHALTET' : 'AUSGESCHALTET') + '
+              </div>
+            </div>
+            ' + (entities.grow_light_power && currentValues.grow_light_power ? '
+              <div style="margin-top: 8px; font-size: 14px; color: var(--secondary-text-color, #727272);">
+                Leistung: ' + currentValues.grow_light_power + ' W
+              </div>
+            ' : '') + '
+          ' : '<p class="empty">Keine Licht-Steuerung konfiguriert oder verfügbar.</p>') + '
+        </div>
+      </section>
+      
+      <!-- Diary Section (Placeholder - will be implemented in Issue #10) -->
+      <section data-section="diary">
+        <h2>📖 Tagebuch</h2>
+        <div class="card">
+          <p class="empty">Tagebuch-UI wird in Issue #10 implementiert.</p>
+          ' + (this._activeGrowRun ? '
+            <p style="font-size: 14px; color: var(--secondary-text-color, #727272);">
+              Aktive Grow Run: ' + this._activeGrowRun + '
+            </p>
+          ' : '') + '
+        </div>
+      </section>
+    ';
 
-@lit/reactive-element/css-tag.js:
-  (**
-   * @license
-   * Copyright 2019 Google LLC
-   * SPDX-License-Identifier: BSD-3-Clause
-   *)
+    this.shadowRoot.innerHTML = htmlContent;
+  }
+};
 
-@lit/reactive-element/reactive-element.js:
-lit-html/lit-html.js:
-lit-element/lit-element.js:
-  (**
-   * @license
-   * Copyright 2017 Google LLC
-   * SPDX-License-Identifier: BSD-3-Clause
-   *)
-
-lit-html/is-server.js:
-  (**
-   * @license
-   * Copyright 2022 Google LLC
-   * SPDX-License-Identifier: BSD-3-Clause
-   *)
-*/
+customElements.define('growhelper-panel', GrowhelperPanel);
