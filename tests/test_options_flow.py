@@ -13,6 +13,8 @@ from custom_components.growhelper.const import (
     DOMAIN,
     ENTITY_ROLES,
     GROWTH_PHASES,
+    MAX_PLANTS,
+    SOIL_SENSOR_FIELDS,
     TARGET_PROFILE_FIELDS,
 )
 
@@ -46,6 +48,31 @@ OPTIONS_INPUT = {
     "light_on_time": "input_datetime.growbox_light_on",
     "light_off_time": "input_datetime.growbox_light_off",
     "camera_rotation": "90",
+}
+
+# A complete set of Plant values (2 plants configured).
+PLANTS_INPUT = {
+    # Plant 1: Banana Boogie Split
+    "plant_1_name": "Plant 1",
+    "plant_1_cultivar": "Banana Boogie Split",
+    "plant_1_soil_temperature": "sensor.growbox_plant1_soil_temperature",
+    "plant_1_soil_moisture": "sensor.growbox_plant1_soil_moisture",
+    "plant_1_soil_illuminance": "sensor.growbox_plant1_soil_illuminance",
+    "plant_1_soil_conductivity": "sensor.growbox_plant1_soil_conductivity",
+    # Plant 2: Another cultivar
+    "plant_2_name": "Plant 2",
+    "plant_2_cultivar": "Blue Dream",
+    "plant_2_soil_temperature": "sensor.growbox_plant2_soil_temperature",
+    "plant_2_soil_moisture": "sensor.growbox_plant2_soil_moisture",
+    "plant_2_soil_illuminance": "sensor.growbox_plant2_soil_illuminance",
+    "plant_2_soil_conductivity": "sensor.growbox_plant2_soil_conductivity",
+    # Plant 3: Not configured (None values)
+    "plant_3_name": None,
+    "plant_3_cultivar": None,
+    "plant_3_soil_temperature": None,
+    "plant_3_soil_moisture": None,
+    "plant_3_soil_illuminance": None,
+    "plant_3_soil_conductivity": None,
 }
 
 # A complete set of Target Profile values for all Growth Phases.
@@ -121,13 +148,19 @@ async def test_options_flow_shows_all_entity_role_pickers(
     assert data_schema is not None
     schema_keys = {marker.schema for marker in data_schema.schema}
 
-    # The schema now includes Entity Roles, camera_rotation, and Target Profile fields
+    # The schema now includes Entity Roles, camera_rotation, Target Profile fields, and Plant fields
     expected_entity_keys = set(ENTITY_ROLES) | {"camera_rotation"}
     expected_target_keys = {
         f"{phase}_{field}" for phase in GROWTH_PHASES for field in TARGET_PROFILE_FIELDS
     }
+    expected_plant_keys = {
+        f"plant_{i}_{field}" 
+        for i in range(1, MAX_PLANTS + 1) 
+        for field in ["name", "cultivar"] + list(SOIL_SENSOR_FIELDS)
+    }
     assert expected_entity_keys.issubset(schema_keys)
     assert expected_target_keys.issubset(schema_keys)
+    assert expected_plant_keys.issubset(schema_keys)
 
 
 async def test_options_flow_stores_entity_roles_and_rotation(
@@ -358,3 +391,162 @@ async def test_options_flow_rejects_invalid_vpd_range(
     assert "errors" in result
     assert "late-bloom_vpd_lower" in result["errors"]
     assert "late-bloom_vpd_upper" in result["errors"]
+
+
+# Plant tests
+
+
+async def test_options_flow_shows_all_plant_fields(
+    hass: HomeAssistant,
+) -> None:
+    """The options form shows all Plant fields for all plant slots."""
+    entry = await _setup_entry(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    assert result["type"] is FlowResultType.FORM
+    data_schema = result["data_schema"]
+    assert data_schema is not None
+
+    # Check that all Plant fields are present
+    schema_keys = {marker.schema for marker in data_schema.schema}
+    expected_keys = {
+        f"plant_{i}_{field}" 
+        for i in range(1, MAX_PLANTS + 1) 
+        for field in ["name", "cultivar"] + list(SOIL_SENSOR_FIELDS)
+    }
+    assert expected_keys.issubset(schema_keys)
+
+
+async def test_options_flow_stores_plants(
+    hass: HomeAssistant,
+) -> None:
+    """Submitting the options flow stores all Plants."""
+    entry = await _setup_entry(hass)
+
+    # Combine Entity Roles, Target Profiles, and Plants
+    combined_input = OPTIONS_INPUT | TARGET_PROFILES_INPUT | PLANTS_INPUT
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], combined_input
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    # Check that all Plant fields are stored
+    for key, value in PLANTS_INPUT.items():
+        assert entry.options.get(key) == value
+
+
+async def test_options_flow_plants_round_trip(
+    hass: HomeAssistant,
+) -> None:
+    """Reopening the options flow shows the stored Plant values."""
+    entry = await _setup_entry(hass)
+
+    # Combine Entity Roles, Target Profiles, and Plants
+    combined_input = OPTIONS_INPUT | TARGET_PROFILES_INPUT | PLANTS_INPUT
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    await hass.config_entries.options.async_configure(
+        result["flow_id"], combined_input
+    )
+    await hass.async_block_till_done()
+
+    # Reopen and check defaults
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] is FlowResultType.FORM
+    data_schema = result["data_schema"]
+    assert data_schema is not None
+
+    # Check that defaults match stored values for Plants
+    for marker in data_schema.schema:
+        if marker.schema in PLANTS_INPUT:
+            suggested = (marker.description or {}).get("suggested_value")
+            if suggested is not None:
+                assert suggested == PLANTS_INPUT[marker.schema]
+
+
+async def test_options_flow_rejects_plant_without_sensors(
+    hass: HomeAssistant,
+) -> None:
+    """Submitting a Plant with a name but no soil sensors shows an error."""
+    entry = await _setup_entry(hass)
+
+    # Create input with a plant that has a name but no sensors
+    invalid_input = OPTIONS_INPUT | dict(TARGET_PROFILES_INPUT) | {
+        "plant_1_name": "Plant 1",
+        "plant_1_cultivar": "Banana Boogie Split",
+        "plant_1_soil_temperature": None,
+        "plant_1_soil_moisture": None,
+        "plant_1_soil_illuminance": None,
+        "plant_1_soil_conductivity": None,
+    }
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], invalid_input
+    )
+
+    # Should return a form with errors
+    assert result["type"] is FlowResultType.FORM
+    assert "errors" in result
+    assert "plant_1_name" in result["errors"]
+
+
+async def test_options_flow_allows_plant_with_one_sensor(
+    hass: HomeAssistant,
+) -> None:
+    """Submitting a Plant with a name and at least one soil sensor is accepted."""
+    entry = await _setup_entry(hass)
+
+    # Create input with a plant that has a name and one sensor
+    valid_input = OPTIONS_INPUT | dict(TARGET_PROFILES_INPUT) | {
+        "plant_1_name": "Plant 1",
+        "plant_1_cultivar": "Banana Boogie Split",
+        "plant_1_soil_temperature": "sensor.growbox_plant1_soil_temperature",
+        "plant_1_soil_moisture": None,
+        "plant_1_soil_illuminance": None,
+        "plant_1_soil_conductivity": None,
+    }
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], valid_input
+    )
+
+    # Should succeed
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options.get("plant_1_name") == "Plant 1"
+    assert entry.options.get("plant_1_soil_temperature") == "sensor.growbox_plant1_soil_temperature"
+
+
+async def test_options_flow_allows_empty_plant_slots(
+    hass: HomeAssistant,
+) -> None:
+    """Empty plant slots (no name) are allowed and don't require sensors."""
+    entry = await _setup_entry(hass)
+
+    # Create input with empty plant slots (None values)
+    valid_input = OPTIONS_INPUT | dict(TARGET_PROFILES_INPUT) | {
+        "plant_1_name": None,
+        "plant_1_cultivar": None,
+        "plant_1_soil_temperature": None,
+        "plant_1_soil_moisture": None,
+        "plant_1_soil_illuminance": None,
+        "plant_1_soil_conductivity": None,
+        "plant_2_name": None,
+        "plant_2_cultivar": None,
+        "plant_2_soil_temperature": None,
+        "plant_2_soil_moisture": None,
+        "plant_2_soil_illuminance": None,
+        "plant_2_soil_conductivity": None,
+    }
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], valid_input
+    )
+
+    # Should succeed
+    assert result["type"] is FlowResultType.CREATE_ENTRY

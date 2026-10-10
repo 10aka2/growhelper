@@ -68,3 +68,16 @@ TARGET_PROFILE_FIELDS: tuple[str, ...] = (
     "light_on_time",
     "light_off_time",
 )
+
+# Soil sensor group field names for a Plant.
+# Each Plant has a soil sensor group with these four sensor entities.
+SOIL_SENSOR_FIELDS: tuple[str, ...] = (
+    "soil_temperature",
+    "soil_moisture",
+    "soil_illuminance",
+    "soil_conductivity",
+)
+
+# Maximum number of Plants supported in the options flow.
+# In practice, growers use 1-3 plants; no hard technical limit.
+MAX_PLANTS: int = 3

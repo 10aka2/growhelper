@@ -2,11 +2,12 @@
 
 The config flow creates one config entry per Grow Box. The options flow maps
 the Grow Box's Entity Roles (sensors, devices and the writable input helpers),
-the camera rotation, and the Target Profiles per Growth Phase.
+the camera rotation, the Target Profiles per Growth Phase, and the Plants.
 """
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from typing import Any
 
@@ -26,6 +27,8 @@ from .const import (
     DOMAIN,
     ENTITY_ROLES,
     GROWTH_PHASES,
+    MAX_PLANTS,
+    SOIL_SENSOR_FIELDS,
     TARGET_PROFILE_FIELDS,
 )
 
@@ -60,10 +63,10 @@ def _entity_role_schema(defaults: Mapping[str, Any]) -> vol.Schema:
 
 
 def _combined_schema(defaults: Mapping[str, Any]) -> vol.Schema:
-    """Build the combined options schema with Entity Roles and Target Profiles.
+    """Build the combined options schema with Entity Roles, Target Profiles, and Plants.
 
-    This schema includes all Entity Role pickers, camera rotation, and all
-    Target Profile fields for all Growth Phases.
+    This schema includes all Entity Role pickers, camera rotation, all
+    Target Profile fields for all Growth Phases, and Plant configurations.
     """
     # Start with Entity Roles
     fields: dict[vol.Marker, Any] = {}
@@ -141,6 +144,35 @@ def _combined_schema(defaults: Mapping[str, Any]) -> vol.Schema:
             )
         ] = str
 
+    # Add Plants (fixed slots for up to MAX_PLANTS plants)
+    for plant_index in range(1, MAX_PLANTS + 1):
+        prefix = f"plant_{plant_index}"
+        
+        # Plant name (optional - if empty, the plant slot is unused)
+        fields[
+            vol.Optional(
+                f"{prefix}_name",
+                default=defaults.get(f"{prefix}_name", None),
+            )
+        ] = vol.Any(str, None)
+        
+        # Cultivar (optional)
+        fields[
+            vol.Optional(
+                f"{prefix}_cultivar",
+                default=defaults.get(f"{prefix}_cultivar", None),
+            )
+        ] = vol.Any(str, None)
+        
+        # Soil sensor group (all optional - if name is set, at least one sensor should be set)
+        for sensor_field in SOIL_SENSOR_FIELDS:
+            fields[
+                vol.Optional(
+                    f"{prefix}_{sensor_field}",
+                    default=defaults.get(f"{prefix}_{sensor_field}", None),
+                )
+            ] = vol.Any(selector.EntitySelector(selector.EntitySelectorConfig(domain=["sensor"])), None)
+
     return vol.Schema(fields)
 
 
@@ -170,15 +202,18 @@ class GrowhelperOptionsFlow(OptionsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Configure Entity Roles, camera rotation, and Target Profiles.
+        """Configure Entity Roles, camera rotation, Target Profiles, and Plants.
 
         Shows a single form with all configuration options: Entity Role pickers,
-        camera rotation selector, and Target Profile fields for all Growth Phases.
-        All range fields are validated (lower < upper).
+        camera rotation selector, Target Profile fields for all Growth Phases,
+        and Plant configurations. All range fields are validated (lower < upper).
+        Plants with a name set must have at least one soil sensor configured.
         """
         if user_input is not None:
             # Validate all Target Profile ranges before storing
             errors: dict[str, str] = {}
+            
+            # Validate Target Profile ranges
             for phase in GROWTH_PHASES:
                 # Check temperature range
                 temp_lower = user_input.get(f"{phase}_temperature_lower")
@@ -203,6 +238,26 @@ class GrowhelperOptionsFlow(OptionsFlow):
                     if vpd_lower >= vpd_upper:
                         errors[f"{phase}_vpd_lower"] = "must be less than upper"
                         errors[f"{phase}_vpd_upper"] = "must be greater than lower"
+            
+            # Validate Plants: if a plant has a name, it must have at least one soil sensor
+            for plant_index in range(1, MAX_PLANTS + 1):
+                prefix = f"plant_{plant_index}"
+                name = user_input.get(f"{prefix}_name")
+                
+                if name and name.strip():  # Plant has a name, so it's being used
+                    # Check that at least one soil sensor is configured
+                    has_sensor = False
+                    for sensor_field in SOIL_SENSOR_FIELDS:
+                        sensor_value = user_input.get(f"{prefix}_{sensor_field}")
+                        if sensor_value and sensor_value.strip():
+                            has_sensor = True
+                            break
+                    
+                    if not has_sensor:
+                        errors[f"{prefix}_name"] = "plant with name must have at least one soil sensor"
+                        # Mark all soil sensor fields for this plant as having errors
+                        for sensor_field in SOIL_SENSOR_FIELDS:
+                            errors[f"{prefix}_{sensor_field}"] = "at least one required"
 
             if errors:
                 return self.async_show_form(
