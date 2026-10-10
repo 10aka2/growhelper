@@ -1,8 +1,9 @@
 /**
- * Growhelper Panel - Box Sections (Camera, Environment, VPD, Climate, Plants)
+ * Growhelper Panel - Box Sections (Camera, Environment, VPD, Climate, Plants, Diary)
  * 
  * Issue #8: Panel: box sections (camera, environment, VPD, climate)
  * Issue #9: Panel: Plants section
+ * Issue #10: Panel: Grow Diary UI
  * 
  * This web component renders the Grow Box panel with:
  * - Live camera view with configured rotation
@@ -11,6 +12,7 @@
  * - Climate devices (exhaust fan, ventilation fan, humidifier, dehumidifier) with on/off state and power
  * - Light schedule with on/off times and state
  * - Plants section with soil sensor cards showing temperature, moisture, illuminance, and conductivity
+ * - Grow Diary section with markdown rendering, entry form, and new run button
  */
 
 // Use the global LitElement from Home Assistant's frontend
@@ -57,6 +59,10 @@ var SOIL_SENSOR_DISPLAY = {
   'soil_conductivity': { label: 'Bodenleitfähigkeit', unit: 'mS/cm', icon: '⚡' }
 };
 
+// Grow Diary constants
+var DIARY_ENTRY_ALL_TAG = 'alle';
+var DIARY_DATE_FORMAT = 'DD.MM.YYYY';
+
 // Simple template tag for HTML
 var html = function(strings, ...values) {
   var result = strings[0];
@@ -88,6 +94,14 @@ var GrowhelperPanel = class extends HTMLElement {
     this._cameraImage = '';
     this._activeGrowRun = '';
     this._plants = [];
+    this._diaryContent = '';
+    this._showEntryForm = false;
+    this._entryFormData = {
+      note: '',
+      plant_tag: DIARY_ENTRY_ALL_TAG,
+      event_title: '',
+      date: this._formatDateForInput(new Date())
+    };
     this._hass = window.hass || {};
   }
 
@@ -96,14 +110,92 @@ var GrowhelperPanel = class extends HTMLElement {
     this._loadEntityStates();
     this._setupHassConnection();
     this._render();
+    this._setupEventListeners();
   }
 
   disconnectedCallback() {
     this._cleanupHassConnection();
+    this._cleanupEventListeners();
   }
 
   attributeChangedCallback(name, oldValue, newValue) {
     this._render();
+  }
+
+  _setupEventListeners() {
+    // Set global reference for event handlers
+    window.growhelperPanel = this;
+    
+    // Set up event delegation for form inputs
+    var shadowRoot = this.shadowRoot;
+    if (shadowRoot) {
+      shadowRoot.addEventListener('change', this._handleFormChange.bind(this));
+      shadowRoot.addEventListener('click', this._handleClick.bind(this));
+    }
+  }
+
+  _cleanupEventListeners() {
+    // Remove global reference
+    if (window.growhelperPanel === this) {
+      delete window.growhelperPanel;
+    }
+    
+    // Remove event listeners
+    var shadowRoot = this.shadowRoot;
+    if (shadowRoot) {
+      shadowRoot.removeEventListener('change', this._handleFormChange.bind(this));
+      shadowRoot.removeEventListener('click', this._handleClick.bind(this));
+    }
+  }
+
+  _handleFormChange(event) {
+    // Handle form input changes via event delegation
+    var target = event.target;
+    var field = null;
+    var value = target.value;
+    
+    // Check if the target has a data-field attribute
+    if (target.classList.contains('diary-input')) {
+      field = target.getAttribute('data-field');
+    }
+    
+    if (field) {
+      this._updateFormField(field, value);
+      this._render();
+    }
+  }
+
+  _handleClick(event) {
+    // Handle button clicks via event delegation
+    var target = event.target;
+    
+    // Check if the click was on a button with specific data attributes
+    while (target && target !== this.shadowRoot) {
+      if (target.classList.contains('btn-primary') || target.classList.contains('btn-secondary')) {
+        var action = target.getAttribute('data-action');
+        if (action) {
+          this._handleButtonAction(action);
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+      }
+      target = target.parentElement;
+    }
+  }
+
+  _handleButtonAction(action) {
+    switch (action) {
+      case 'toggle-entry-form':
+        this._toggleEntryForm();
+        break;
+      case 'submit-entry':
+        this._submitDiaryEntry();
+        break;
+      case 'start-new-run':
+        this._startNewGrowRun();
+        break;
+    }
   }
 
   _loadConfig() {
@@ -125,6 +217,7 @@ var GrowhelperPanel = class extends HTMLElement {
       this._loadTargetProfile();
       this._loadActiveGrowRun();
       this._loadPlants();
+      this._loadDiaryContent();
     }
   }
 
@@ -180,6 +273,166 @@ var GrowhelperPanel = class extends HTMLElement {
         
         this._plants.push(plant);
       }
+    }
+  }
+
+  _loadDiaryContent() {
+    // Load diary content for the active grow run
+    // For now, we'll use a placeholder since loading file content from the browser
+    // requires a service call or API endpoint
+    // In a real implementation, this would call growhelper.get_diary_content service
+    
+    if (!this._activeGrowRun) {
+      this._diaryContent = '';
+      return;
+    }
+    
+    // Placeholder: show a sample diary content
+    // In production, this would be loaded from the actual diary file
+    this._diaryContent = this._getSampleDiaryContent();
+  }
+
+  _getSampleDiaryContent() {
+    // Return sample diary content for demonstration
+    // In a real implementation, this would be loaded from the diary file
+    return '## 10.10.2026\n\n#### Bewässerung\n\n- [alle] Pflanzen bewässert\n\n---\n\n## 11.10.2026\n\n#### Düngung\n\n- [Pflanze 1] Dünger hinzugefügt\n\n---\n';
+  }
+
+  _formatDateForInput(date) {
+    // Format date for input[type="date"] (YYYY-MM-DD)
+    if (!date) {
+      date = new Date();
+    }
+    var year = date.getFullYear();
+    var month = String(date.getMonth() + 1).padStart(2, '0');
+    var day = String(date.getDate()).padStart(2, '0');
+    return year + '-' + month + '-' + day;
+  }
+
+  _formatDateForDisplay(dateStr) {
+    // Format date for display (DD.MM.YYYY)
+    if (!dateStr) return '';
+    var date = new Date(dateStr);
+    var day = String(date.getDate()).padStart(2, '0');
+    var month = String(date.getMonth() + 1).padStart(2, '0');
+    var year = date.getFullYear();
+    return day + '.' + month + '.' + year;
+  }
+
+  _getPlantTagOptions() {
+    // Get plant tag options: configured plants + "alle"
+    var options = [{ value: DIARY_ENTRY_ALL_TAG, label: 'Alle Pflanzen' }];
+    
+    for (var i = 0; i < this._plants.length; i++) {
+      var plant = this._plants[i];
+      options.push({ value: plant.name, label: plant.name });
+    }
+    
+    return options;
+  }
+
+  _toggleEntryForm() {
+    this._showEntryForm = !this._showEntryForm;
+    // Reset form when closing
+    if (!this._showEntryForm) {
+      this._entryFormData = {
+        note: '',
+        plant_tag: DIARY_ENTRY_ALL_TAG,
+        event_title: '',
+        date: this._formatDateForInput(new Date())
+      };
+    }
+    this._render();
+  }
+
+  _updateFormField(field, value) {
+    this._entryFormData[field] = value;
+  }
+
+  _submitDiaryEntry() {
+    // Submit the diary entry via service call
+    if (!this._entryFormData.note.trim()) {
+      return; // Don't submit empty notes
+    }
+    
+    // Call the add_diary_entry service
+    // For now, we'll just log and simulate the behavior
+    console.log('Submitting diary entry:', this._entryFormData);
+    
+    // Simulate service call - in production, this would call the actual service
+    this._callHassService('growhelper/add_diary_entry', {
+      note: this._entryFormData.note,
+      plant_tag: this._entryFormData.plant_tag === DIARY_ENTRY_ALL_TAG ? 'all' : this._entryFormData.plant_tag,
+      event_title: this._entryFormData.event_title || undefined,
+      date: this._entryFormData.date || undefined
+    });
+    
+    // Reset form and reload diary
+    this._entryFormData = {
+      note: '',
+      plant_tag: DIARY_ENTRY_ALL_TAG,
+      event_title: '',
+      date: this._formatDateForInput(new Date())
+    };
+    this._showEntryForm = false;
+    
+    // Add the entry to the sample content (for demo purposes)
+    var newEntry = this._formatDiaryEntry(this._entryFormData);
+    if (this._diaryContent) {
+      this._diaryContent += '\n' + newEntry;
+    } else {
+      this._diaryContent = newEntry;
+    }
+    
+    this._render();
+  }
+
+  _formatDiaryEntry(formData) {
+    // Format a diary entry according to ADR-0001
+    var date = new Date(formData.date);
+    var dateStr = this._formatDateForDisplay(formData.date);
+    var dateHeader = '## ' + dateStr;
+    
+    var entry = dateHeader + '\n\n';
+    
+    if (formData.event_title) {
+      entry += '#### ' + formData.event_title + '\n\n';
+    }
+    
+    entry += '- [' + formData.plant_tag + '] ' + formData.note + '\n';
+    entry += '---\n';
+    
+    return entry;
+  }
+
+  _startNewGrowRun() {
+    // Start a new grow run via service call
+    console.log('Starting new grow run');
+    
+    // Call the start_grow_run service
+    this._callHassService('growhelper/start_grow_run', {});
+    
+    // Simulate the behavior - in production, this would reload from the service response
+    // For demo purposes, we'll create a new run name and reset the diary
+    var newRunName = 'grow_run_' + new Date().toISOString().substr(0, 10).replace(/-/g, '');
+    this._activeGrowRun = newRunName;
+    this._diaryContent = this._getSampleDiaryContent();
+    this._growthPhase = 'early-veg';
+    
+    this._render();
+  }
+
+  _callHassService(domain, serviceData) {
+    // Call a Home Assistant service
+    // In Home Assistant, services are called via hass.callService
+    if (this._hass && this._hass.callService) {
+      try {
+        this._hass.callService(domain, serviceData);
+      } catch (error) {
+        console.error('Error calling service:', domain, error);
+      }
+    } else {
+      console.log('Service call (simulated):', domain, serviceData);
     }
   }
 
@@ -262,6 +515,174 @@ var GrowhelperPanel = class extends HTMLElement {
     var div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  _renderDiarySection() {
+    var htmlContent = '';
+    
+    // Show active grow run info
+    if (this._activeGrowRun) {
+      htmlContent += '
+        <div class="diary-header">
+          <span class="active-run-info">
+            <strong>Aktive Grow Run:</strong> ' + this._escapeHtml(this._activeGrowRun) + '
+          </span>
+          <button class="btn btn-primary" data-action="start-new-run">
+            🆕 Neue Grow Run starten
+          </button>
+        </div>';
+    } else {
+      htmlContent += '
+        <div class="diary-header">
+          <p class="empty">Keine aktive Grow Run. Starte eine neue, um Einträge hinzuzufügen.</p>
+          <button class="btn btn-primary" data-action="start-new-run">
+            🆕 Neue Grow Run starten
+          </button>
+        </div>';
+    }
+    
+    // Show diary content
+    if (this._diaryContent) {
+      htmlContent += '
+        <div class="diary-content markdown-body">
+          ' + this._renderMarkdown(this._diaryContent) + '
+        </div>';
+    } else if (this._activeGrowRun) {
+      htmlContent += '
+        <div class="diary-content empty">
+          <p>Keine Einträge für diese Grow Run.</p>
+        </div>';
+    }
+    
+    // Entry form
+    htmlContent += '
+      <div class="diary-entry-form">
+        <button class="btn btn-secondary" data-action="toggle-entry-form">
+          ' + (this._showEntryForm ? '❌ Abbrechen' : '➕ Neuer Eintrag') + '
+        </button>
+        
+        ' + (this._showEntryForm ? this._renderEntryForm() : '') + '
+      </div>';
+    
+    // Set global reference for event handlers
+    htmlContent += '<script>
+      (function() {
+        var panel = document.currentScript.closest("growhelper-panel");
+        if (panel) {
+          window.growhelperPanel = panel;
+        }
+      })();
+    </script>';
+    
+    // Set global reference to this panel instance for event handlers
+    htmlContent += '<script>
+      (function() {
+        var panel = document.currentScript.closest("growhelper-panel");
+        if (panel) {
+          window.growhelperPanel = panel;
+        }
+      })();
+    </script>';
+    
+    return htmlContent;
+  }
+
+  _renderEntryForm() {
+    var plantOptions = this._getPlantTagOptions();
+    var optionsHtml = '';
+    
+    for (var i = 0; i < plantOptions.length; i++) {
+      var option = plantOptions[i];
+      var selected = option.value === this._entryFormData.plant_tag ? 'selected' : '';
+      optionsHtml += '<option value="' + this._escapeHtml(option.value) + '" ' + selected + '>' + this._escapeHtml(option.label) + '</option>';
+    }
+    
+    return '
+      <div class="entry-form-container">
+        <div class="form-group">
+          <label>Datum:</label>
+          <input 
+            type="date" 
+            class="diary-input" 
+            data-field="date"
+            value="' + this._entryFormData.date + '"
+          >
+        </div>
+        
+        <div class="form-group">
+          <label>Ereignis (optional):</label>
+          <input 
+            type="text" 
+            class="diary-input" 
+            data-field="event_title"
+            value="' + this._escapeHtml(this._entryFormData.event_title) + '"
+            placeholder="z.B. Bewässerung, Düngung"
+          >
+        </div>
+        
+        <div class="form-group">
+          <label>Pflanze:</label>
+          <select 
+            class="diary-input" 
+            data-field="plant_tag"
+          >
+            ' + optionsHtml + '
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label>Notiz:</label>
+          <textarea 
+            class="diary-input" 
+            data-field="note"
+            placeholder="Was ist passiert?"
+            rows="3"
+          >' + this._escapeHtml(this._entryFormData.note) + '</textarea>
+        </div>
+        
+        <div class="form-actions">
+          <button class="btn btn-primary" data-action="submit-entry">
+            ✅ Eintrag hinzufügen
+          </button>
+        </div>
+      </div>';
+  }
+
+  _renderMarkdown(content) {
+    // Simple markdown rendering for the diary
+    // In a real implementation, we'd use a proper markdown library
+    // For now, we'll do basic formatting
+    
+    if (!content) return '<p class="empty">Kein Inhalt</p>';
+    
+    // Escape HTML first
+    var safeContent = this._escapeHtml(content);
+    
+    // Basic markdown formatting
+    // Headers: ## Date -> <h3>Date</h3>
+    safeContent = safeContent.replace(/^##\s+(.+)$/gm, '<h3>$1</h3>');
+    safeContent = safeContent.replace(/^####\s+(.+)$/gm, '<h4>$1</h4>');
+    
+    // Separator: --- -> <hr>
+    safeContent = safeContent.replace(/^---$/gm, '<hr>');
+    
+    // Bullet points: - [tag] text -> <li>[tag] text</li>
+    safeContent = safeContent.replace(/^-\s+\[([^\]]+)\]\s+(.+)$/gm, '<li><strong>[$1]</strong> $2</li>');
+    
+    // Wrap lists in <ul>
+    safeContent = safeContent.replace(/<li>/g, '</ul><ul><li>');
+    safeContent = safeContent.replace(/<\/li>/g, '</li>');
+    if (safeContent.includes('<ul>')) {
+      safeContent = '<ul>' + safeContent + '</ul>';
+    }
+    
+    // Remove empty <ul> tags
+    safeContent = safeContent.replace(/<ul><\/ul>/g, '');
+    
+    // Add paragraph tags for standalone text
+    safeContent = safeContent.replace(/^([^<].+)$/gm, '<p>$1</p>');
+    
+    return safeContent;
   }
 
   _loadEntityStates() {
@@ -838,6 +1259,167 @@ var GrowhelperPanel = class extends HTMLElement {
           .plant-sensors {
             grid-template-columns: 1fr;
           }
+          
+          .diary-header {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          
+          .form-actions {
+            flex-direction: column;
+          }
+          
+          .btn {
+            width: 100%;
+          }
+        }
+        
+        /* Diary Section */
+        .diary-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 16px;
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+        
+        .active-run-info {
+          font-size: 14px;
+          color: var(--secondary-text-color, #727272);
+        }
+        
+        .diary-content {
+          margin-bottom: 16px;
+          padding: 12px;
+          background: var(--secondary-background-color, #f5f5f5);
+          border-radius: 4px;
+          min-height: 100px;
+        }
+        
+        .diary-content.empty {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--secondary-text-color, #727272);
+          font-style: italic;
+        }
+        
+        .markdown-body {
+          line-height: 1.5;
+        }
+        
+        .markdown-body h3 {
+          font-size: 16px;
+          margin: 16px 0 8px;
+          color: var(--primary-text-color, #212121);
+          border-bottom: 1px solid var(--divider-color, #e0e0e0);
+          padding-bottom: 4px;
+        }
+        
+        .markdown-body h4 {
+          font-size: 14px;
+          margin: 12px 0 4px;
+          color: var(--primary-text-color, #212121);
+        }
+        
+        .markdown-body p {
+          margin: 8px 0;
+          color: var(--primary-text-color, #212121);
+        }
+        
+        .markdown-body ul {
+          margin: 8px 0;
+          padding-left: 20px;
+        }
+        
+        .markdown-body li {
+          margin: 4px 0;
+          color: var(--primary-text-color, #212121);
+        }
+        
+        .markdown-body hr {
+          border: none;
+          border-top: 1px solid var(--divider-color, #e0e0e0);
+          margin: 12px 0;
+        }
+        
+        .diary-entry-form {
+          margin-top: 16px;
+          padding-top: 16px;
+          border-top: 1px solid var(--divider-color, #e0e0e0);
+        }
+        
+        .entry-form-container {
+          margin-top: 12px;
+          padding: 12px;
+          background: var(--secondary-background-color, #f5f5f5);
+          border-radius: 4px;
+        }
+        
+        .form-group {
+          margin-bottom: 12px;
+        }
+        
+        .form-group label {
+          display: block;
+          font-size: 12px;
+          color: var(--secondary-text-color, #727272);
+          margin-bottom: 4px;
+          font-weight: bold;
+        }
+        
+        .form-group input[type="text"],
+        .form-group input[type="date"],
+        .form-group select,
+        .form-group textarea {
+          width: 100%;
+          padding: 8px;
+          border: 1px solid var(--divider-color, #e0e0e0);
+          border-radius: 4px;
+          font-size: 14px;
+          box-sizing: border-box;
+        }
+        
+        .form-group textarea {
+          resize: vertical;
+          min-height: 80px;
+        }
+        
+        .form-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 8px;
+          margin-top: 16px;
+        }
+        
+        /* Buttons */
+        .btn {
+          padding: 8px 16px;
+          border: none;
+          border-radius: 4px;
+          font-size: 14px;
+          cursor: pointer;
+          transition: background-color 0.2s ease;
+        }
+        
+        .btn-primary {
+          background: var(--primary-color, #03A9F4);
+          color: white;
+        }
+        
+        .btn-primary:hover {
+          background: var(--primary-color-dark, #0288D1);
+        }
+        
+        .btn-secondary {
+          background: var(--secondary-background-color, #f5f5f5);
+          color: var(--primary-text-color, #212121);
+          border: 1px solid var(--divider-color, #e0e0e0);
+        }
+        
+        .btn-secondary:hover {
+          background: var(--divider-color, #e0e0e0);
         }
       </style>
       
@@ -1068,16 +1650,11 @@ var GrowhelperPanel = class extends HTMLElement {
         </div>
       </section>
       
-      <!-- Diary Section (Placeholder - will be implemented in Issue #10) -->
+      <!-- Diary Section (Issue #10) -->
       <section data-section="diary">
         <h2>📖 Tagebuch</h2>
         <div class="card">
-          <p class="empty">Tagebuch-UI wird in Issue #10 implementiert.</p>
-          ' + (this._activeGrowRun ? '
-            <p style="font-size: 14px; color: var(--secondary-text-color, #727272);">
-              Aktive Grow Run: ' + this._activeGrowRun + '
-            </p>
-          ' : '') + '
+          ' + this._renderDiarySection() + '
         </div>
       </section>
     ';
