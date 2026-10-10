@@ -1,7 +1,8 @@
 /**
- * Growhelper Panel - Box Sections (Camera, Environment, VPD, Climate)
+ * Growhelper Panel - Box Sections (Camera, Environment, VPD, Climate, Plants)
  * 
  * Issue #8: Panel: box sections (camera, environment, VPD, climate)
+ * Issue #9: Panel: Plants section
  * 
  * This web component renders the Grow Box panel with:
  * - Live camera view with configured rotation
@@ -9,6 +10,7 @@
  * - VPD section with current value, target range, and reference zone bands
  * - Climate devices (exhaust fan, ventilation fan, humidifier, dehumidifier) with on/off state and power
  * - Light schedule with on/off times and state
+ * - Plants section with soil sensor cards showing temperature, moisture, illuminance, and conductivity
  */
 
 // Use the global LitElement from Home Assistant's frontend
@@ -41,6 +43,20 @@ var CAMERA_ROTATION_STYLES = {
   '270': 'rotate(270deg)'
 };
 
+// Soil sensor field names for Plants
+var SOIL_SENSOR_FIELDS = ['soil_temperature', 'soil_moisture', 'soil_illuminance', 'soil_conductivity'];
+
+// Maximum number of Plants
+var MAX_PLANTS = 3;
+
+// Soil sensor display names and units
+var SOIL_SENSOR_DISPLAY = {
+  'soil_temperature': { label: 'Bodentemperatur', unit: '°C', icon: '🌡️' },
+  'soil_moisture': { label: 'Bodenfeuchtigkeit', unit: '%', icon: '💧' },
+  'soil_illuminance': { label: 'Bodenbeleuchtung', unit: 'lux', icon: '☀️' },
+  'soil_conductivity': { label: 'Bodenleitfähigkeit', unit: 'mS/cm', icon: '⚡' }
+};
+
 // Simple template tag for HTML
 var html = function(strings, ...values) {
   var result = strings[0];
@@ -71,6 +87,7 @@ var GrowhelperPanel = class extends HTMLElement {
     this._targetProfile = {};
     this._cameraImage = '';
     this._activeGrowRun = '';
+    this._plants = [];
     this._hass = window.hass || {};
   }
 
@@ -107,6 +124,7 @@ var GrowhelperPanel = class extends HTMLElement {
       this._config = configEntry.options || {};
       this._loadTargetProfile();
       this._loadActiveGrowRun();
+      this._loadPlants();
     }
   }
 
@@ -135,6 +153,115 @@ var GrowhelperPanel = class extends HTMLElement {
 
   _loadActiveGrowRun() {
     this._activeGrowRun = this._config.active_grow_run || '';
+  }
+
+  _loadPlants() {
+    // Load plant configurations from config
+    this._plants = [];
+    
+    for (var plantIndex = 1; plantIndex <= MAX_PLANTS; plantIndex++) {
+      var prefix = 'plant_' + plantIndex;
+      var name = this._config[prefix + '_name'];
+      
+      // Only create plant entry if it has a name
+      if (name && name.trim()) {
+        var plant = {
+          name: name,
+          cultivar: this._config[prefix + '_cultivar'] || '',
+          sensors: {}
+        };
+        
+        // Load all soil sensor entities for this plant
+        for (var i = 0; i < SOIL_SENSOR_FIELDS.length; i++) {
+          var sensorField = SOIL_SENSOR_FIELDS[i];
+          var sensorEntityId = this._config[prefix + '_' + sensorField];
+          plant.sensors[sensorField] = sensorEntityId || null;
+        }
+        
+        this._plants.push(plant);
+      }
+    }
+  }
+
+  _renderPlantsSection() {
+    // Check if there are any plants configured
+    if (!this._plants || this._plants.length === 0) {
+      return '<p class="empty">Keine Pflanzen konfiguriert.</p>';
+    }
+    
+    var htmlContent = '<div class="plants-grid">';
+    
+    for (var i = 0; i < this._plants.length; i++) {
+      var plant = this._plants[i];
+      var plantId = 'plant-' + (i + 1);
+      
+      htmlContent += '
+        <div class="plant-card" data-plant-id="' + plantId + '">
+          <div class="plant-header">
+            <span class="plant-name">' + this._escapeHtml(plant.name) + '</span>';
+      
+      if (plant.cultivar) {
+        htmlContent += '
+            <span class="plant-cultivar">' + this._escapeHtml(plant.cultivar) + '</span>';
+      }
+      
+      htmlContent += '
+          </div>
+          <div class="plant-sensors">';
+      
+      // Render each soil sensor for this plant
+      for (var j = 0; j < SOIL_SENSOR_FIELDS.length; j++) {
+        var sensorField = SOIL_SENSOR_FIELDS[j];
+        var sensorInfo = SOIL_SENSOR_DISPLAY[sensorField];
+        var sensorEntityId = plant.sensors[sensorField];
+        var sensorValue = null;
+        var sensorState = null;
+        
+        if (sensorEntityId) {
+          sensorState = this._getEntityState(sensorEntityId);
+          if (sensorState) {
+            sensorValue = sensorState.state;
+          }
+        }
+        
+        // Determine if sensor is available and has a value
+        var hasSensor = sensorEntityId && sensorValue !== null && sensorValue !== undefined && sensorValue !== 'unavailable' && sensorValue !== 'unknown';
+        
+        htmlContent += '
+            <div class="plant-sensor-card ' + (hasSensor ? 'has-value' : 'empty') + '">
+              <div class="sensor-icon">' + sensorInfo.icon + '</div>
+              <div class="sensor-label">' + sensorInfo.label + '</div>
+              <div class="sensor-value">';
+        
+        if (hasSensor) {
+          htmlContent += this._formatNumber(sensorValue, 1) + ' <span class="sensor-unit">' + sensorInfo.unit + '</span>';
+        } else {
+          htmlContent += '<span class="sensor-unavailable">––</span>';
+        }
+        
+        htmlContent += '
+              </div>
+              <div class="sensor-chart">
+                <div class="chart-placeholder">' + sensorInfo.label + '-Verlauf (24h)</div>
+              </div>
+            </div>';
+      }
+      
+      htmlContent += '
+          </div>
+        </div>';
+    }
+    
+    htmlContent += '</div>';
+    
+    return htmlContent;
+  }
+
+  _escapeHtml(text) {
+    if (!text) return '';
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
   _loadEntityStates() {
@@ -491,6 +618,96 @@ var GrowhelperPanel = class extends HTMLElement {
           margin-right: 4px;
         }
         
+        /* Plants Section */
+        .plants-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          gap: 16px;
+        }
+        
+        .plant-card {
+          background: var(--secondary-background-color, #f5f5f5);
+          border-radius: 8px;
+          padding: 12px;
+          border: 1px solid var(--divider-color, #e0e0e0);
+        }
+        
+        .plant-header {
+          display: flex;
+          flex-direction: column;
+          margin-bottom: 12px;
+          padding-bottom: 8px;
+          border-bottom: 1px solid var(--divider-color, #e0e0e0);
+        }
+        
+        .plant-name {
+          font-size: 16px;
+          font-weight: bold;
+          color: var(--primary-text-color, #212121);
+        }
+        
+        .plant-cultivar {
+          font-size: 12px;
+          color: var(--secondary-text-color, #727272);
+          font-style: italic;
+        }
+        
+        .plant-sensors {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 8px;
+        }
+        
+        .plant-sensor-card {
+          background: white;
+          border-radius: 4px;
+          padding: 8px;
+          border: 1px solid var(--divider-color, #e0e0e0);
+        }
+        
+        .plant-sensor-card.has-value {
+          background: white;
+        }
+        
+        .plant-sensor-card.empty {
+          background: var(--secondary-background-color, #f5f5f5);
+        }
+        
+        .sensor-icon {
+          font-size: 16px;
+          margin-bottom: 4px;
+        }
+        
+        .sensor-label {
+          font-size: 11px;
+          color: var(--secondary-text-color, #727272);
+          margin-bottom: 4px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        
+        .sensor-value {
+          font-size: 14px;
+          font-weight: bold;
+          color: var(--primary-text-color, #212121);
+        }
+        
+        .sensor-unit {
+          font-size: 11px;
+          color: var(--secondary-text-color, #727272);
+        }
+        
+        .sensor-unavailable {
+          color: var(--secondary-text-color, #727272);
+          font-style: italic;
+        }
+        
+        .sensor-chart {
+          height: 60px;
+          margin-top: 6px;
+        }
+        
         .status-badge {
           display: inline-flex;
           align-items: center;
@@ -612,6 +829,14 @@ var GrowhelperPanel = class extends HTMLElement {
           .vpd-value-display {
             flex: none;
             text-align: center;
+          }
+          
+          .plants-grid {
+            grid-template-columns: 1fr;
+          }
+          
+          .plant-sensors {
+            grid-template-columns: 1fr;
           }
         }
       </style>
@@ -832,6 +1057,14 @@ var GrowhelperPanel = class extends HTMLElement {
               </div>
             ' : '') + '
           ' : '<p class="empty">Keine Licht-Steuerung konfiguriert oder verfügbar.</p>') + '
+        </div>
+      </section>
+      
+      <!-- Plants Section (Issue #9) -->
+      <section data-section="plants">
+        <h2>🌱 Pflanzen</h2>
+        <div class="card">
+          ' + this._renderPlantsSection() + '
         </div>
       </section>
       
