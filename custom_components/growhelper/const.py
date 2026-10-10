@@ -81,3 +81,6 @@ SOIL_SENSOR_FIELDS: tuple[str, ...] = (
 # Maximum number of Plants supported in the options flow.
 # In practice, growers use 1-3 plants; no hard technical limit.
 MAX_PLANTS: int = 3
+
+# Service names for the Growhelper integration.
+SERVICE_SET_GROWTH_PHASE = "set_growth_phase"
