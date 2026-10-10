@@ -9,5 +9,43 @@
         }
       }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Growhelper konfigurieren",
+        "description": "Ordne die Sensoren und Aktoren deiner Grow Box zu.",
+        "data": {
+          "canopy_temperature": "Kronen-Temperatur",
+          "canopy_humidity": "Kronen-Luftfeuchtigkeit",
+          "vpd_sensor": "VPD-Sensor",
+          "camera": "Kamera",
+          "humidifier": "Luftbefeuchter",
+          "dehumidifier": "Luftentfeuchter",
+          "exhaust_fan": "Abluft",
+          "ventilation_fan": "Ventilator",
+          "grow_light": "Growlampe",
+          "humidifier_power": "Leistung Luftbefeuchter",
+          "dehumidifier_power": "Leistung Luftentfeuchter",
+          "exhaust_fan_power": "Leistung Abluft",
+          "ventilation_fan_power": "Leistung Ventilator",
+          "grow_light_power": "Leistung Growlampe",
+          "growth_phase_early_veg": "Phase: Early Veg",
+          "growth_phase_late_veg": "Phase: Late Veg",
+          "growth_phase_late_bloom": "Phase: Late Bloom",
+          "growth_phase_dry": "Phase: Dry",
+          "growth_phase_off": "Phase: Off",
+          "temperature_lower_threshold": "Temperatur-Schwelle unten",
+          "temperature_upper_threshold": "Temperatur-Schwelle oben",
+          "humidity_lower_threshold": "Luftfeuchtigkeit-Schwelle unten",
+          "humidity_upper_threshold": "Luftfeuchtigkeit-Schwelle oben",
+          "vpd_lower_threshold": "VPD-Schwelle unten",
+          "vpd_upper_threshold": "VPD-Schwelle oben",
+          "light_on_time": "Licht an (Uhrzeit)",
+          "light_off_time": "Licht aus (Uhrzeit)",
+          "camera_rotation": "Kamera-Rotation"
+        }
+      }
+    }
   }
 }

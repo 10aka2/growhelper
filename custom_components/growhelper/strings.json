@@ -9,5 +9,43 @@
         }
       }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure Growhelper",
+        "description": "Assign the Grow Box's sensors and actuators.",
+        "data": {
+          "canopy_temperature": "Canopy temperature",
+          "canopy_humidity": "Canopy humidity",
+          "vpd_sensor": "VPD sensor",
+          "camera": "Camera",
+          "humidifier": "Humidifier",
+          "dehumidifier": "Dehumidifier",
+          "exhaust_fan": "Exhaust fan",
+          "ventilation_fan": "Ventilation fan",
+          "grow_light": "Grow light",
+          "humidifier_power": "Humidifier power",
+          "dehumidifier_power": "Dehumidifier power",
+          "exhaust_fan_power": "Exhaust fan power",
+          "ventilation_fan_power": "Ventilation fan power",
+          "grow_light_power": "Grow light power",
+          "growth_phase_early_veg": "Growth phase: Early Veg",
+          "growth_phase_late_veg": "Growth phase: Late Veg",
+          "growth_phase_late_bloom": "Growth phase: Late Bloom",
+          "growth_phase_dry": "Growth phase: Dry",
+          "growth_phase_off": "Growth phase: Off",
+          "temperature_lower_threshold": "Temperature lower threshold",
+          "temperature_upper_threshold": "Temperature upper threshold",
+          "humidity_lower_threshold": "Humidity lower threshold",
+          "humidity_upper_threshold": "Humidity upper threshold",
+          "vpd_lower_threshold": "VPD lower threshold",
+          "vpd_upper_threshold": "VPD upper threshold",
+          "light_on_time": "Light on time",
+          "light_off_time": "Light off time",
+          "camera_rotation": "Camera rotation"
+        }
+      }
+    }
   }
 }
