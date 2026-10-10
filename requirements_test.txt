@@ -1,0 +1,7 @@
+# Test harness for custom Home Assistant integrations, pinned to the exact
+# Home Assistant version this integration targets (2026.9.4). The harness is
+# released on GitHub only — PyPI is stale at 0.13.205 (HA 2025.1.4).
+pytest-homeassistant-custom-component @ git+https://github.com/MatthewFlamm/pytest-homeassistant-custom-component@0.13.367
+
+# Typechecking — run regularly while implementing (see AGENTS.md, coding standards).
+mypy==2.4.0

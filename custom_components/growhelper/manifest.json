@@ -1,0 +1,11 @@
+{
+  "domain": "growhelper",
+  "name": "Growhelper",
+  "codeowners": ["@10aka2"],
+  "config_flow": true,
+  "documentation": "https://github.com/10aka2/growhelper",
+  "integration_type": "service",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/10aka2/growhelper/issues",
+  "version": "0.1.0"
+}
