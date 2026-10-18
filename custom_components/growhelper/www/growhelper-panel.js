@@ -102,7 +102,15 @@ var GrowhelperPanel = class extends HTMLElement {
       event_title: '',
       date: this._formatDateForInput(new Date())
     };
-    this._hass = window.hass || {};
+    this._hass = {};
+  }
+
+  // Setter for hass - called by Home Assistant when hass is available
+  set hass(hass) {
+    this._hass = hass;
+    this._loadConfigFromHass();
+    this._loadEntityStates();
+    this._render();
   }
 
   connectedCallback() {
@@ -129,8 +137,11 @@ var GrowhelperPanel = class extends HTMLElement {
     // Set up event delegation for form inputs
     var shadowRoot = this.shadowRoot;
     if (shadowRoot) {
-      shadowRoot.addEventListener('change', this._handleFormChange.bind(this));
-      shadowRoot.addEventListener('click', this._handleClick.bind(this));
+      // Store bound references for proper removal
+      this._boundHandleFormChange = this._handleFormChange.bind(this);
+      this._boundHandleClick = this._handleClick.bind(this);
+      shadowRoot.addEventListener('change', this._boundHandleFormChange);
+      shadowRoot.addEventListener('click', this._boundHandleClick);
     }
   }
 
@@ -142,9 +153,11 @@ var GrowhelperPanel = class extends HTMLElement {
     
     // Remove event listeners
     var shadowRoot = this.shadowRoot;
-    if (shadowRoot) {
-      shadowRoot.removeEventListener('change', this._handleFormChange.bind(this));
-      shadowRoot.removeEventListener('click', this._handleClick.bind(this));
+    if (shadowRoot && this._boundHandleFormChange && this._boundHandleClick) {
+      shadowRoot.removeEventListener('change', this._boundHandleFormChange);
+      shadowRoot.removeEventListener('click', this._boundHandleClick);
+      this._boundHandleFormChange = null;
+      this._boundHandleClick = null;
     }
   }
 
@@ -199,8 +212,7 @@ var GrowhelperPanel = class extends HTMLElement {
   }
 
   _loadConfig() {
-    if (window.hass) {
-      this._hass = window.hass;
+    if (this._hass && this._hass.states) {
       this._loadConfigFromHass();
     }
   }
@@ -208,12 +220,29 @@ var GrowhelperPanel = class extends HTMLElement {
   _loadConfigFromHass() {
     if (!this._hass || !this._hass.states) return;
     
-    // Get the growhelper config entry
-    var configEntry = this._hass.config.entries ? 
-      this._hass.config.entries.find(function(e) { return e.domain === 'growhelper'; }) : null;
+    // Get the growhelper config from hass.states
+    // Config entries are not available in frontend via hass.config.entries
+    // Instead, we need to load config from the growhelper integration's state
+    // For now, try to get config from hass.states['sensor.growhelper_config'] or similar
+    // This is a placeholder - actual config loading needs backend support
     
-    if (configEntry) {
-      this._config = configEntry.options || {};
+    // Try to find config in states (if integration provides it)
+    var configState = null;
+    for (var entityId in this._hass.states) {
+      if (entityId.startsWith('sensor.growhelper_config') || entityId.startsWith('growhelper.config')) {
+        configState = this._hass.states[entityId];
+        break;
+      }
+    }
+    
+    if (configState && configState.attributes) {
+      this._config = configState.attributes;
+    } else {
+      // Fallback: empty config
+      this._config = {};
+    }
+    
+    if (this._config) {
       this._loadTargetProfile();
       this._loadActiveGrowRun();
       this._loadPlants();
@@ -359,8 +388,11 @@ var GrowhelperPanel = class extends HTMLElement {
     // For now, we'll just log and simulate the behavior
     console.log('Submitting diary entry:', this._entryFormData);
     
-    // Simulate service call - in production, this would call the actual service
-    this._callHassService('growhelper/add_diary_entry', {
+    // Format the entry first (before resetting _entryFormData)
+    var newEntry = this._formatDiaryEntry(this._entryFormData);
+    
+    // Call the actual service
+    this._callHassService('growhelper', 'add_diary_entry', {
       note: this._entryFormData.note,
       plant_tag: this._entryFormData.plant_tag === DIARY_ENTRY_ALL_TAG ? 'all' : this._entryFormData.plant_tag,
       event_title: this._entryFormData.event_title || undefined,
@@ -375,9 +407,6 @@ var GrowhelperPanel = class extends HTMLElement {
       date: this._formatDateForInput(new Date())
     };
     this._showEntryForm = false;
-    
-    // Add the entry to the sample content (for demo purposes)
-    var newEntry = this._formatDiaryEntry(this._entryFormData);
     if (this._diaryContent) {
       this._diaryContent += '\n' + newEntry;
     } else {
@@ -410,7 +439,7 @@ var GrowhelperPanel = class extends HTMLElement {
     console.log('Starting new grow run');
     
     // Call the start_grow_run service
-    this._callHassService('growhelper/start_grow_run', {});
+    this._callHassService('growhelper', 'start_grow_run', {});
     
     // Simulate the behavior - in production, this would reload from the service response
     // For demo purposes, we'll create a new run name and reset the diary
@@ -422,17 +451,17 @@ var GrowhelperPanel = class extends HTMLElement {
     this._render();
   }
 
-  _callHassService(domain, serviceData) {
+  _callHassService(domain, service, serviceData) {
     // Call a Home Assistant service
-    // In Home Assistant, services are called via hass.callService
+    // Correct format: hass.callService(domain, service, serviceData)
     if (this._hass && this._hass.callService) {
       try {
-        this._hass.callService(domain, serviceData);
+        this._hass.callService(domain, service, serviceData);
       } catch (error) {
-        console.error('Error calling service:', domain, error);
+        console.error('Error calling service:', domain, service, error);
       }
     } else {
-      console.log('Service call (simulated):', domain, serviceData);
+      console.log('Service call (simulated):', domain, service, serviceData);
     }
   }
 
@@ -448,19 +477,13 @@ var GrowhelperPanel = class extends HTMLElement {
       var plant = this._plants[i];
       var plantId = 'plant-' + (i + 1);
       
-      htmlContent += '
-        <div class="plant-card" data-plant-id="' + plantId + '">
-          <div class="plant-header">
-            <span class="plant-name">' + this._escapeHtml(plant.name) + '</span>';
+      htmlContent += '<div class="plant-card" data-plant-id="' + plantId + '"><div class="plant-header"><span class="plant-name">' + this._escapeHtml(plant.name) + '</span>';
       
       if (plant.cultivar) {
-        htmlContent += '
-            <span class="plant-cultivar">' + this._escapeHtml(plant.cultivar) + '</span>';
+        htmlContent += '<span class="plant-cultivar">' + this._escapeHtml(plant.cultivar) + '</span>';
       }
       
-      htmlContent += '
-          </div>
-          <div class="plant-sensors">';
+      htmlContent += '</div><div class="plant-sensors">';
       
       // Render each soil sensor for this plant
       for (var j = 0; j < SOIL_SENSOR_FIELDS.length; j++) {
@@ -480,11 +503,7 @@ var GrowhelperPanel = class extends HTMLElement {
         // Determine if sensor is available and has a value
         var hasSensor = sensorEntityId && sensorValue !== null && sensorValue !== undefined && sensorValue !== 'unavailable' && sensorValue !== 'unknown';
         
-        htmlContent += '
-            <div class="plant-sensor-card ' + (hasSensor ? 'has-value' : 'empty') + '">
-              <div class="sensor-icon">' + sensorInfo.icon + '</div>
-              <div class="sensor-label">' + sensorInfo.label + '</div>
-              <div class="sensor-value">';
+        htmlContent += '<div class="plant-sensor-card ' + (hasSensor ? 'has-value' : 'empty') + '"><div class="sensor-icon">' + sensorInfo.icon + '</div><div class="sensor-label">' + sensorInfo.label + '</div><div class="sensor-value">';
         
         if (hasSensor) {
           htmlContent += this._formatNumber(sensorValue, 1) + ' <span class="sensor-unit">' + sensorInfo.unit + '</span>';
@@ -492,17 +511,10 @@ var GrowhelperPanel = class extends HTMLElement {
           htmlContent += '<span class="sensor-unavailable">––</span>';
         }
         
-        htmlContent += '
-              </div>
-              <div class="sensor-chart">
-                <div class="chart-placeholder">' + sensorInfo.label + '-Verlauf (24h)</div>
-              </div>
-            </div>';
+        htmlContent += '</div><div class="sensor-chart"><div class="chart-placeholder">' + sensorInfo.label + '-Verlauf (24h)</div></div></div>';
       }
       
-      htmlContent += '
-          </div>
-        </div>';
+      htmlContent += '</div></div>';
     }
     
     htmlContent += '</div>';
@@ -522,67 +534,20 @@ var GrowhelperPanel = class extends HTMLElement {
     
     // Show active grow run info
     if (this._activeGrowRun) {
-      htmlContent += '
-        <div class="diary-header">
-          <span class="active-run-info">
-            <strong>Aktive Grow Run:</strong> ' + this._escapeHtml(this._activeGrowRun) + '
-          </span>
-          <button class="btn btn-primary" data-action="start-new-run">
-            🆕 Neue Grow Run starten
-          </button>
-        </div>';
+      htmlContent += '<div class="diary-header"><span class="active-run-info"><strong>Aktive Grow Run:</strong> ' + this._escapeHtml(this._activeGrowRun) + '</span><button class="btn btn-primary" data-action="start-new-run">🆕 Neue Grow Run starten</button></div>';
     } else {
-      htmlContent += '
-        <div class="diary-header">
-          <p class="empty">Keine aktive Grow Run. Starte eine neue, um Einträge hinzuzufügen.</p>
-          <button class="btn btn-primary" data-action="start-new-run">
-            🆕 Neue Grow Run starten
-          </button>
-        </div>';
+      htmlContent += '<div class="diary-header"><p class="empty">Keine aktive Grow Run. Starte eine neue, um Einträge hinzuzufügen.</p><button class="btn btn-primary" data-action="start-new-run">🆕 Neue Grow Run starten</button></div>';
     }
     
     // Show diary content
     if (this._diaryContent) {
-      htmlContent += '
-        <div class="diary-content markdown-body">
-          ' + this._renderMarkdown(this._diaryContent) + '
-        </div>';
+      htmlContent += '<div class="diary-content markdown-body">' + this._renderMarkdown(this._diaryContent) + '</div>';
     } else if (this._activeGrowRun) {
-      htmlContent += '
-        <div class="diary-content empty">
-          <p>Keine Einträge für diese Grow Run.</p>
-        </div>';
+      htmlContent += '<div class="diary-content empty"><p>Keine Einträge für diese Grow Run.</p></div>';
     }
     
     // Entry form
-    htmlContent += '
-      <div class="diary-entry-form">
-        <button class="btn btn-secondary" data-action="toggle-entry-form">
-          ' + (this._showEntryForm ? '❌ Abbrechen' : '➕ Neuer Eintrag') + '
-        </button>
-        
-        ' + (this._showEntryForm ? this._renderEntryForm() : '') + '
-      </div>';
-    
-    // Set global reference for event handlers
-    htmlContent += '<script>
-      (function() {
-        var panel = document.currentScript.closest("growhelper-panel");
-        if (panel) {
-          window.growhelperPanel = panel;
-        }
-      })();
-    </script>';
-    
-    // Set global reference to this panel instance for event handlers
-    htmlContent += '<script>
-      (function() {
-        var panel = document.currentScript.closest("growhelper-panel");
-        if (panel) {
-          window.growhelperPanel = panel;
-        }
-      })();
-    </script>';
+    htmlContent += '<div class="diary-entry-form"><button class="btn btn-secondary" data-action="toggle-entry-form">' + (this._showEntryForm ? '❌ Abbrechen' : '➕ Neuer Eintrag') + '</button>' + (this._showEntryForm ? this._renderEntryForm() : '') + '</div>';
     
     return htmlContent;
   }
@@ -597,55 +562,7 @@ var GrowhelperPanel = class extends HTMLElement {
       optionsHtml += '<option value="' + this._escapeHtml(option.value) + '" ' + selected + '>' + this._escapeHtml(option.label) + '</option>';
     }
     
-    return '
-      <div class="entry-form-container">
-        <div class="form-group">
-          <label>Datum:</label>
-          <input 
-            type="date" 
-            class="diary-input" 
-            data-field="date"
-            value="' + this._entryFormData.date + '"
-          >
-        </div>
-        
-        <div class="form-group">
-          <label>Ereignis (optional):</label>
-          <input 
-            type="text" 
-            class="diary-input" 
-            data-field="event_title"
-            value="' + this._escapeHtml(this._entryFormData.event_title) + '"
-            placeholder="z.B. Bewässerung, Düngung"
-          >
-        </div>
-        
-        <div class="form-group">
-          <label>Pflanze:</label>
-          <select 
-            class="diary-input" 
-            data-field="plant_tag"
-          >
-            ' + optionsHtml + '
-          </select>
-        </div>
-        
-        <div class="form-group">
-          <label>Notiz:</label>
-          <textarea 
-            class="diary-input" 
-            data-field="note"
-            placeholder="Was ist passiert?"
-            rows="3"
-          >' + this._escapeHtml(this._entryFormData.note) + '</textarea>
-        </div>
-        
-        <div class="form-actions">
-          <button class="btn btn-primary" data-action="submit-entry">
-            ✅ Eintrag hinzufügen
-          </button>
-        </div>
-      </div>';
+    return '<div class="entry-form-container"><div class="form-group"><label>Datum:</label><input type="date" class="diary-input" data-field="date" value="' + this._entryFormData.date + '"></div><div class="form-group"><label>Ereignis (optional):</label><input type="text" class="diary-input" data-field="event_title" value="' + this._escapeHtml(this._entryFormData.event_title) + '" placeholder="z.B. Bewässerung, Düngung"></div><div class="form-group"><label>Pflanze:</label><select class="diary-input" data-field="plant_tag">' + optionsHtml + '</select></div><div class="form-group"><label>Notiz:</label><textarea class="diary-input" data-field="note" placeholder="Was ist passiert?" rows="3">' + this._escapeHtml(this._entryFormData.note) + '</textarea></div><div class="form-actions"><button class="btn btn-primary" data-action="submit-entry">✅ Eintrag hinzufügen</button></div></div>';
   }
 
   _renderMarkdown(content) {
@@ -669,11 +586,13 @@ var GrowhelperPanel = class extends HTMLElement {
     // Bullet points: - [tag] text -> <li>[tag] text</li>
     safeContent = safeContent.replace(/^-\s+\[([^\]]+)\]\s+(.+)$/gm, '<li><strong>[$1]</strong> $2</li>');
     
-    // Wrap lists in <ul>
-    safeContent = safeContent.replace(/<li>/g, '</ul><ul><li>');
-    safeContent = safeContent.replace(/<\/li>/g, '</li>');
-    if (safeContent.includes('<ul>')) {
-      safeContent = '<ul>' + safeContent + '</ul>';
+    // Wrap lists in <ul> (fixed: avoid broken HTML)
+    // Collect all list items and wrap them in a single <ul>
+    var hasListItems = safeContent.includes('<li>');
+    if (hasListItems) {
+      // Replace all list items with a single <ul> wrapper
+      safeContent = safeContent.replace(/<li>/g, '<li>').replace(/<\/li>/g, '</li>');
+      safeContent = safeContent.replace(/((?:<li>.*?<\/li>\s*)+)/g, '<ul>$1</ul>');
     }
     
     // Remove empty <ul> tags
@@ -699,28 +618,12 @@ var GrowhelperPanel = class extends HTMLElement {
   }
 
   _setupHassConnection() {
-    if (!window.hass) return;
-    
-    // Listen for state changes
-    if (window.hass.connection) {
-      window.hass.connection.subscribeStates(this._handleStateChange.bind(this));
-    }
-    
-    // Listen for config changes
-    if (window.hass.connection) {
-      window.hass.connection.subscribeConfig(this._handleConfigChange.bind(this));
-    }
+    // No need to subscribe - hass is updated via setter and states are in hass.states
+    // The connectedCallback will be called again when hass changes
   }
 
   _cleanupHassConnection() {
-    if (window.hass?.connection) {
-      try {
-        window.hass.connection.unsubscribeStates(this._handleStateChange.bind(this));
-        window.hass.connection.unsubscribeConfig(this._handleConfigChange.bind(this));
-      } catch (e) {
-        // Ignore unsubscribe errors
-      }
-    }
+    // No cleanup needed
   }
 
   _handleStateChange() {
@@ -783,9 +686,19 @@ var GrowhelperPanel = class extends HTMLElement {
     return value >= min && value <= max;
   }
 
+  _safeParseFloat(value) {
+    // Safely parse float, return null for invalid values (unavailable, unknown, etc.)
+    if (value === null || value === undefined || value === 'unavailable' || value === 'unknown') {
+      return null;
+    }
+    var num = parseFloat(value);
+    return isNaN(num) ? null : num;
+  }
+
   _formatNumber(value, decimals) {
     if (value === null || value === undefined) return '--';
-    return parseFloat(value).toFixed(decimals || 1);
+    var num = this._safeParseFloat(value);
+    return num === null ? '--' : num.toFixed(decimals || 1);
   }
 
   _render() {
@@ -838,8 +751,7 @@ var GrowhelperPanel = class extends HTMLElement {
     var hasDevices = entities.humidifier || entities.dehumidifier || entities.exhaust_fan || entities.ventilation_fan || entities.grow_light;
 
     // Build the HTML
-    var htmlContent = '
-      <style>
+    var htmlContent = `<style>
         :host {
           display: block;
           padding: 16px;
@@ -1462,9 +1374,9 @@ var GrowhelperPanel = class extends HTMLElement {
                   <div class="value">
                     ' + this._formatNumber(currentValues.temperature, 1) + '
                     <span class="unit">°C</span>
-                    ' + (this._isInRange(parseFloat(currentValues.temperature), this._targetProfile.temperature?.lower, this._targetProfile.temperature?.upper) ? '
+                    ' + (this._isInRange(this._safeParseFloat(currentValues.temperature), this._targetProfile.temperature?.lower, this._targetProfile.temperature?.upper) ? '
                       <span class="threshold-indicator in-range" title="Im Zielbereich"></span>
-                    ' : this._isInRange(parseFloat(currentValues.temperature), this._targetProfile.temperature?.lower, this._targetProfile.temperature?.upper) === false && currentValues.temperature < this._targetProfile.temperature?.lower ? '
+                    ' : this._isInRange(this._safeParseFloat(currentValues.temperature), this._targetProfile.temperature?.lower, this._targetProfile.temperature?.upper) === false && this._safeParseFloat(currentValues.temperature) < this._targetProfile.temperature?.lower ? '
                       <span class="threshold-indicator below-range" title="Unter dem Zielbereich"></span>
                     ' : '
                       <span class="threshold-indicator above-range" title="Über dem Zielbereich"></span>
@@ -1482,9 +1394,9 @@ var GrowhelperPanel = class extends HTMLElement {
                   <div class="value">
                     ' + this._formatNumber(currentValues.humidity, 1) + '
                     <span class="unit">%</span>
-                    ' + (this._isInRange(parseFloat(currentValues.humidity), this._targetProfile.humidity?.lower, this._targetProfile.humidity?.upper) ? '
+                    ' + (this._isInRange(this._safeParseFloat(currentValues.humidity), this._targetProfile.humidity?.lower, this._targetProfile.humidity?.upper) ? '
                       <span class="threshold-indicator in-range" title="Im Zielbereich"></span>
-                    ' : this._isInRange(parseFloat(currentValues.humidity), this._targetProfile.humidity?.lower, this._targetProfile.humidity?.upper) === false && currentValues.humidity < this._targetProfile.humidity?.lower ? '
+                    ' : this._isInRange(this._safeParseFloat(currentValues.humidity), this._targetProfile.humidity?.lower, this._targetProfile.humidity?.upper) === false && this._safeParseFloat(currentValues.humidity) < this._targetProfile.humidity?.lower ? '
                       <span class="threshold-indicator below-range" title="Unter dem Zielbereich"></span>
                     ' : '
                       <span class="threshold-indicator above-range" title="Über dem Zielbereich"></span>
@@ -1509,8 +1421,8 @@ var GrowhelperPanel = class extends HTMLElement {
               <div class="vpd-value-display">
                 <div class="vpd-value">' + this._formatNumber(currentValues.vpd, 2) + '</div>
                 <div class="vpd-unit">kPa</div>
-                <div class="status-badge ' + (this._isInRange(parseFloat(currentValues.vpd), this._targetProfile.vpd?.lower, this._targetProfile.vpd?.upper) ? 'active' : 'inactive') + '">
-                  ' + (this._isInRange(parseFloat(currentValues.vpd), this._targetProfile.vpd?.lower, this._targetProfile.vpd?.upper) ? 'Im Zielbereich' : 'Außerhalb des Zielbereichs') + '
+                <div class="status-badge ' + (this._isInRange(this._safeParseFloat(currentValues.vpd), this._targetProfile.vpd?.lower, this._targetProfile.vpd?.upper) ? 'active' : 'inactive') + '">
+                  ' + (this._isInRange(this._safeParseFloat(currentValues.vpd), this._targetProfile.vpd?.lower, this._targetProfile.vpd?.upper) ? 'Im Zielbereich' : 'Außerhalb des Zielbereichs') + '
                 </div>
               </div>
               <div class="vpd-zones">
@@ -1518,31 +1430,31 @@ var GrowhelperPanel = class extends HTMLElement {
                   <div class="vpd-zone-color" style="background: ' + VPD_ZONES['under-transpiration'].color + ';"></div>
                   <div class="vpd-zone-label">' + VPD_ZONES['under-transpiration'].label + '</div>
                   <div class="vpd-zone-range">&lt; ' + VPD_ZONES['under-transpiration'].max + ' kPa</div>
-                  ' + (parseFloat(currentValues.vpd) < VPD_ZONES['under-transpiration'].max ? '<div class="vpd-current-indicator" style="background: ' + VPD_ZONES['under-transpiration'].color + ';"></div>' : '') + '
+                  ' + (this._safeParseFloat(currentValues.vpd) < VPD_ZONES['under-transpiration'].max ? '<div class="vpd-current-indicator" style="background: ' + VPD_ZONES['under-transpiration'].color + ';"></div>' : '') + '
                 </div>
                 <div class="vpd-zone">
                   <div class="vpd-zone-color" style="background: ' + VPD_ZONES['early-veg'].color + ';"></div>
                   <div class="vpd-zone-label">' + VPD_ZONES['early-veg'].label + '</div>
                   <div class="vpd-zone-range">' + VPD_ZONES['early-veg'].min + '–' + VPD_ZONES['early-veg'].max + ' kPa</div>
-                  ' + (parseFloat(currentValues.vpd) >= VPD_ZONES['early-veg'].min && parseFloat(currentValues.vpd) <= VPD_ZONES['early-veg'].max ? '<div class="vpd-current-indicator" style="background: ' + VPD_ZONES['early-veg'].color + ';"></div>' : '') + '
+                  ' + (this._safeParseFloat(currentValues.vpd) >= VPD_ZONES['early-veg'].min && this._safeParseFloat(currentValues.vpd) <= VPD_ZONES['early-veg'].max ? '<div class="vpd-current-indicator" style="background: ' + VPD_ZONES['early-veg'].color + ';"></div>' : '') + '
                 </div>
                 <div class="vpd-zone">
                   <div class="vpd-zone-color" style="background: ' + VPD_ZONES['late-veg'].color + ';"></div>
                   <div class="vpd-zone-label">' + VPD_ZONES['late-veg'].label + '</div>
                   <div class="vpd-zone-range">' + VPD_ZONES['late-veg'].min + '–' + VPD_ZONES['late-veg'].max + ' kPa</div>
-                  ' + (parseFloat(currentValues.vpd) >= VPD_ZONES['late-veg'].min && parseFloat(currentValues.vpd) <= VPD_ZONES['late-veg'].max ? '<div class="vpd-current-indicator" style="background: ' + VPD_ZONES['late-veg'].color + ';"></div>' : '') + '
+                  ' + (this._safeParseFloat(currentValues.vpd) >= VPD_ZONES['late-veg'].min && this._safeParseFloat(currentValues.vpd) <= VPD_ZONES['late-veg'].max ? '<div class="vpd-current-indicator" style="background: ' + VPD_ZONES['late-veg'].color + ';"></div>' : '') + '
                 </div>
                 <div class="vpd-zone">
                   <div class="vpd-zone-color" style="background: ' + VPD_ZONES['mid-late-flower'].color + ';"></div>
                   <div class="vpd-zone-label">' + VPD_ZONES['mid-late-flower'].label + '</div>
                   <div class="vpd-zone-range">' + VPD_ZONES['mid-late-flower'].min + '–' + VPD_ZONES['mid-late-flower'].max + ' kPa</div>
-                  ' + (parseFloat(currentValues.vpd) >= VPD_ZONES['mid-late-flower'].min && parseFloat(currentValues.vpd) <= VPD_ZONES['mid-late-flower'].max ? '<div class="vpd-current-indicator" style="background: ' + VPD_ZONES['mid-late-flower'].color + ';"></div>' : '') + '
+                  ' + (this._safeParseFloat(currentValues.vpd) >= VPD_ZONES['mid-late-flower'].min && this._safeParseFloat(currentValues.vpd) <= VPD_ZONES['mid-late-flower'].max ? '<div class="vpd-current-indicator" style="background: ' + VPD_ZONES['mid-late-flower'].color + ';"></div>' : '') + '
                 </div>
                 <div class="vpd-zone">
                   <div class="vpd-zone-color" style="background: ' + VPD_ZONES['danger-zone'].color + ';"></div>
                   <div class="vpd-zone-label">' + VPD_ZONES['danger-zone'].label + '</div>
                   <div class="vpd-zone-range">&gt; ' + VPD_ZONES['danger-zone'].min + ' kPa</div>
-                  ' + (parseFloat(currentValues.vpd) >= VPD_ZONES['danger-zone'].min ? '<div class="vpd-current-indicator" style="background: ' + VPD_ZONES['danger-zone'].color + ';"></div>' : '') + '
+                  ' + (this._safeParseFloat(currentValues.vpd) >= VPD_ZONES['danger-zone'].min ? '<div class="vpd-current-indicator" style="background: ' + VPD_ZONES['danger-zone'].color + ';"></div>' : '') + '
                 </div>
               </div>
             </div>
@@ -1657,7 +1569,7 @@ var GrowhelperPanel = class extends HTMLElement {
           ' + this._renderDiarySection() + '
         </div>
       </section>
-    ';
+    `;
 
     this.shadowRoot.innerHTML = htmlContent;
   }
