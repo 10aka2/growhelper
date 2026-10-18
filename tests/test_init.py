@@ -50,17 +50,19 @@ async def test_panel_webcomponent_is_served(hass: HomeAssistant, hass_client) ->
     response = await client.get("/growhelper_static/growhelper-panel.js")
     assert response.status == 200
 
-    # The section skeleton mirrors the user's dashboard: every section heading
-    # renders with an empty state (acceptance criterion of ticket #2).
+    # The panel renders all Grow Box sections (Issues #8, #9, #10):
+    # camera, environment, VPD, climate devices, light, plants, diary.
     body = await response.text()
     for heading in (
-        "Phasen",
         "Kamera",
         "Umgebung",
-        "Tagebuch",
-        "Licht & Pflanzen",
-        "Klima",
         "VPD (Dampfdruckdefizit)",
+        "Klima-Geräte",
+        "Licht-Steuerung",
+        "Pflanzen",
+        "Tagebuch",
     ):
         assert heading in body
-    assert "Noch nicht eingerichtet." in body
+    # Empty states are shown when no entities are configured
+    assert "Keine Kamera konfiguriert" in body
+    assert "customElements.define('growhelper-panel'" in body

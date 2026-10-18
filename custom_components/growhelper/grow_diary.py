@@ -209,8 +209,8 @@ async def async_create_grow_run(
         final_name = _generate_run_name()
     
     # Check if a diary file with this name already exists
-    diary_dir = _ensure_diary_directory(hass)
-    file_path = diary_dir / f"{final_name}{GROW_DIARY_FILE_EXTENSION}"
+    _ensure_diary_directory(hass)
+    file_path = _get_diary_file_path(hass, final_name)
     
     if file_path.exists():
         raise ValueError(
@@ -218,14 +218,11 @@ async def async_create_grow_run(
             f"Choose a different name."
         )
     
-    # Create the empty diary file
+    # Create the empty diary file.
+    # No initial content: the first appended entry brings its own date header
+    # (ADR-0001), so an initial header would produce a duplicate.
     file_path.touch()
-    
-    # Write initial header with creation date
-    initial_content = f"{_format_date_header()}\n\n"
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(initial_content)
-    
+
     return final_name, file_path
 
 
@@ -383,37 +380,26 @@ async def async_migrate_prototype_entries(
     run_name, file_path = await async_create_grow_run(
         hass, entry, custom_name=DEFAULT_FIRST_GROW_RUN_NAME
     )
-    
-    # Mark it as active by directly updating the entry options
-    # This ensures subsequent calls to async_get_active_grow_run will see the change
-    entry.options[CONF_ACTIVE_GROW_RUN] = run_name
-    
-    # Also update via the proper method for consistency
+
+    # Mark it as active via the proper HA API (updates entry.options internally)
     await async_set_active_grow_run(hass, entry, run_name)
     
     # Define the prototype entries to migrate
-    # These are based on the grower's existing entries
-    prototype_entries = [
-        {
-            "note": "Aussaat — Banana Boogie Split",
-            "plant_tag": "all",
-            "event_title": None,
-        },
-        {
-            "note": "Umtopfen",
-            "plant_tag": "all", 
-            "event_title": None,
-        },
+    # These are based on the grower's existing entries.
+    # Each entry is a (note, plant_tag, event_title) tuple.
+    prototype_entries: list[tuple[str, str, str | None]] = [
+        ("Aussaat — Banana Boogie Split", "all", None),
+        ("Umtopfen", "all", None),
     ]
-    
+
     # Append each prototype entry
-    for entry_data in prototype_entries:
+    for note, plant_tag, event_title in prototype_entries:
         await async_append_diary_entry(
             hass,
             entry,
-            note=entry_data["note"],
-            plant_tag=entry_data["plant_tag"],
-            event_title=entry_data["event_title"],
+            note=note,
+            plant_tag=plant_tag,
+            event_title=event_title,
         )
     
     return file_path

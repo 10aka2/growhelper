@@ -215,7 +215,8 @@ async def async_setup_services(
             ValueError: If no Grow Run is currently active
             FileNotFoundError: If the active Grow Run's diary file doesn't exist
         """
-        note = call.data.get("note")
+        # Schema (vol.Required("note"): str) guarantees note is present and a str
+        note = call.data["note"]
         plant_tag = call.data.get("plant_tag", "all")
         event_title = call.data.get("event_title")
         date_str = call.data.get("date")
