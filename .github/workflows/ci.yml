@@ -1,0 +1,63 @@
+# Continuous integration for the Growhelper integration.
+#
+# Runs the pytest suite (a real, in-process Home Assistant via
+# pytest-homeassistant-custom-component) and mypy on every push to master,
+# every pull request, and whenever an issue is closed — the moment a finished
+# issue's work is on master. Issues labelled `wontfix` are skipped: they close
+# without code changes, so there is nothing to test.
+
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  issues:
+    types: [closed]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  pytest:
+    name: pytest
+    if: ${{ github.event_name != 'issues' || !contains(github.event.issue.labels.*.name, 'wontfix') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          # Matches mypy.ini and the pinned Home Assistant version.
+          python-version: "3.14"
+      - name: Install test requirements
+        run: pip install -r requirements_test.txt
+      - name: Run tests
+        run: python -m pytest -v
+
+  mypy:
+    name: mypy
+    if: ${{ github.event_name != 'issues' || !contains(github.event.issue.labels.*.name, 'wontfix') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Install test requirements
+        run: pip install -r requirements_test.txt
+      - name: Typecheck the integration
+        run: mypy custom_components/growhelper
+
+  notify:
+    name: Comment on issue
+    # Report the combined result on the issue that triggered the run.
+    needs: [pytest, mypy]
+    if: ${{ always() && github.event_name == 'issues' && !contains(github.event.issue.labels.*.name, 'wontfix') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment on the closed issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --body "CI: pytest **${{ needs.pytest.result }}**, mypy **${{ needs.mypy.result }}** — [run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"

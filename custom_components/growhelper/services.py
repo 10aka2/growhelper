@@ -51,10 +51,11 @@ async def async_setup_services(
         # Get the options from the config entry
         options = entry.options
         
-        # Build the mapping from phase field names to entity IDs
-        # Phase booleans: growth_phase_early_veg, growth_phase_late_veg, etc.
+        # Build the mapping from Growth Phase to phase boolean entity.
+        # The Entity Role keys use underscores (growth_phase_early_veg) while
+        # the Growth Phase names use dashes (early-veg); map between the two.
         phase_entities = {
-            phase_name: options.get(f"growth_phase_{phase_name}")
+            phase_name: options.get(f"growth_phase_{phase_name.replace('-', '_')}")
             for phase_name in GROWTH_PHASES
         }
         

@@ -1,0 +1,56 @@
+# End-to-end smoke test against a real Home Assistant Docker container.
+#
+# Boots Home Assistant (ghcr.io/home-assistant/home-assistant, pinned to the
+# version in requirements_test.txt) with the dummy configuration from
+# tests/e2e/config, mounts this repo's custom_components, and drives the
+# integration through its public REST API: onboarding, config flow, options
+# flow with dummy Entity Roles, service calls, Grow Diary file, panel and
+# static assets (see tests/e2e/smoke.py).
+#
+# Triggered like CI: push to master, pull requests, and closed issues
+# (skipped for `wontfix`).
+
+name: E2E (Docker)
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  issues:
+    types: [closed]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  e2e:
+    name: E2E smoke test
+    if: ${{ github.event_name != 'issues' || !contains(github.event.issue.labels.*.name, 'wontfix') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Install smoke test dependencies
+        run: pip install requests websocket-client
+      - name: Start the Home Assistant container
+        run: docker compose -f tests/e2e/docker-compose.yml up -d
+      - name: Run the smoke test
+        env:
+          HA_BASE_URL: http://127.0.0.1:8123
+          GITHUB_STEP_SUMMARY: ${{ github.step_summary }}
+        run: python tests/e2e/smoke.py
+      - name: Show container logs on failure
+        if: ${{ failure() }}
+        run: docker compose -f tests/e2e/docker-compose.yml logs --tail 200
+      - name: Stop the Home Assistant container
+        if: ${{ always() }}
+        run: docker compose -f tests/e2e/docker-compose.yml down
+      - name: Comment on the closed issue
+        if: ${{ github.event_name == 'issues' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --body "E2E Docker smoke test: **${{ job.status }}** — [run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
