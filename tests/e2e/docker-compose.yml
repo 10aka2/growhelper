@@ -1,0 +1,30 @@
+# Home Assistant container for the Growhelper E2E smoke test (tests/e2e/smoke.py).
+#
+# - The dummy configuration (configuration.yaml with template sensors, template
+#   switches and input helpers for every Entity Role) lives in ./config and is
+#   bind-mounted to /config. Home Assistant state (.storage, databases, Grow
+#   Diary files) also lands there and is git-ignored.
+# - The integration under test is this repo's custom_components, mounted
+#   read-only.
+#
+# Usage:
+#   docker compose -f tests/e2e/docker-compose.yml up -d
+#   python tests/e2e/smoke.py
+#   docker compose -f tests/e2e/docker-compose.yml down
+
+name: growhelper-e2e
+
+services:
+  homeassistant:
+    # Pinned to the Home Assistant version the test harness targets
+    # (see requirements_test.txt).
+    image: ghcr.io/home-assistant/home-assistant:2026.9.4
+    container_name: growhelper-e2e-ha
+    restart: "no"
+    ports:
+      - "127.0.0.1:8123:8123"
+    environment:
+      - TZ=Europe/Berlin
+    volumes:
+      - ./config:/config
+      - ../../custom_components:/config/custom_components:ro

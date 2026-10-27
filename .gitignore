@@ -7,3 +7,8 @@ __pycache__/
 
 # Frontend build
 node_modules/
+
+# E2E Home Assistant instance state (tests/e2e/config is bind-mounted to
+# /config; only the dummy configuration.yaml is tracked)
+tests/e2e/config/*
+!tests/e2e/config/configuration.yaml

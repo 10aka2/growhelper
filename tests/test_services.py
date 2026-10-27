@@ -3,6 +3,7 @@
 import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
+from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.growhelper.const import (
@@ -107,3 +108,107 @@ async def test_set_growth_phase_accepts_valid_phases(
             {"phase": phase},
         )
         await hass.async_block_till_done()
+
+
+async def test_set_growth_phase_writes_phase_booleans_and_target_profile(
+    hass: HomeAssistant,
+) -> None:
+    """set_growth_phase turns exactly the selected phase boolean on (ADR-0002).
+
+    Regression test: the phase boolean Entity Role keys use underscores
+    (growth_phase_early_veg) while the Growth Phase names use dashes
+    (early-veg); the service must map between the two when reading the
+    options. Also verifies the Target Profile values land in the helpers.
+    """
+    await _setup_entry_with_options(hass)
+
+    # Create the writable input helpers the phase bridge writes. The config
+    # keys must produce the entity ids the options map to.
+    await async_setup_component(
+        hass,
+        "input_boolean",
+        {
+            "input_boolean": {
+                f"growbox_{phase.replace('-', '_')}": {"name": phase}
+                for phase in GROWTH_PHASES
+            }
+        },
+    )
+    await async_setup_component(
+        hass,
+        "input_number",
+        {
+            "input_number": {
+                "growbox_temperature_lower": {
+                    "name": "Temperature Lower",
+                    "min": 0,
+                    "max": 40,
+                    "step": 0.5,
+                },
+                "growbox_temperature_upper": {
+                    "name": "Temperature Upper",
+                    "min": 0,
+                    "max": 40,
+                    "step": 0.5,
+                },
+                "growbox_humidity_lower": {
+                    "name": "Humidity Lower",
+                    "min": 0,
+                    "max": 100,
+                    "step": 1,
+                },
+                "growbox_humidity_upper": {
+                    "name": "Humidity Upper",
+                    "min": 0,
+                    "max": 100,
+                    "step": 1,
+                },
+                "growbox_vpd_lower": {
+                    "name": "VPD Lower",
+                    "min": 0,
+                    "max": 3,
+                    "step": 0.1,
+                },
+                "growbox_vpd_upper": {
+                    "name": "VPD Upper",
+                    "min": 0,
+                    "max": 3,
+                    "step": 0.1,
+                },
+            }
+        },
+    )
+    await async_setup_component(
+        hass,
+        "input_datetime",
+        {
+            "input_datetime": {
+                "growbox_light_on": {"name": "Light On", "has_time": True},
+                "growbox_light_off": {"name": "Light Off", "has_time": True},
+            }
+        },
+    )
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_SET_GROWTH_PHASE,
+        {"phase": "late-veg"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    # Exactly one phase boolean is on: the selected one.
+    for phase in GROWTH_PHASES:
+        expected = "on" if phase == "late-veg" else "off"
+        state = hass.states.get(f"input_boolean.growbox_{phase.replace('-', '_')}")
+        assert state is not None
+        assert state.state == expected
+
+    # The Target Profile of late-veg is written to the helpers.
+    assert (
+        float(hass.states.get("input_number.growbox_temperature_lower").state) == 22.0
+    )
+    assert float(hass.states.get("input_number.growbox_vpd_upper").state) == 1.2
+    assert hass.states.get("input_datetime.growbox_light_on").state == "08:00:00"
+    assert hass.states.get("input_datetime.growbox_light_off").state == "20:00:00"

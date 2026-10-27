@@ -1,0 +1,171 @@
+# Dummy Home Assistant configuration for the Growhelper E2E smoke test.
+#
+# Provides one dummy entity per Entity Role the Growhelper options flow asks
+# for (see ENTITY_ROLES in custom_components/growhelper/const.py): fixed-value
+# template sensors for the read roles and power meters, template switches for
+# the device roles, the input helpers the phase bridge writes (ADR-0002), and
+# a soil sensor group for Plant 1. The demo platform adds a dummy camera —
+# the only required role with no cheap template equivalent.
+#
+# tests/e2e/smoke.py resolves these entities and drives the options flow
+# through the REST API.
+
+homeassistant:
+  name: Grow Box E2E
+  time_zone: Europe/Berlin
+  latitude: 52.52
+  longitude: 13.405
+  elevation: 34
+  unit_system: metric
+
+# Provides the dummy camera entity for the camera Entity Role.
+demo:
+
+# Read roles: Grow Box climate sensors with fixed dummy values, the optional
+# power roles (one per device), and the soil sensor group of Plant 1.
+template:
+  - sensor:
+      - name: "Canopy Temperature"
+        unique_id: e2e_canopy_temperature
+        state: "24.5"
+        unit_of_measurement: "°C"
+        device_class: temperature
+      - name: "Canopy Humidity"
+        unique_id: e2e_canopy_humidity
+        state: "55"
+        unit_of_measurement: "%"
+        device_class: humidity
+      - name: "VPD"
+        unique_id: e2e_vpd
+        state: "1.1"
+        unit_of_measurement: "kPa"
+      - name: "Humidifier Power"
+        unique_id: e2e_humidifier_power
+        state: "0"
+        unit_of_measurement: "W"
+        device_class: power
+      - name: "Dehumidifier Power"
+        unique_id: e2e_dehumidifier_power
+        state: "0"
+        unit_of_measurement: "W"
+        device_class: power
+      - name: "Exhaust Fan Power"
+        unique_id: e2e_exhaust_fan_power
+        state: "45"
+        unit_of_measurement: "W"
+        device_class: power
+      - name: "Ventilation Fan Power"
+        unique_id: e2e_ventilation_fan_power
+        state: "30"
+        unit_of_measurement: "W"
+        device_class: power
+      - name: "Grow Light Power"
+        unique_id: e2e_grow_light_power
+        state: "240"
+        unit_of_measurement: "W"
+        device_class: power
+      - name: "Plant 1 Soil Temperature"
+        unique_id: e2e_plant_1_soil_temperature
+        state: "22.0"
+        unit_of_measurement: "°C"
+      - name: "Plant 1 Soil Moisture"
+        unique_id: e2e_plant_1_soil_moisture
+        state: "60"
+        unit_of_measurement: "%"
+      - name: "Plant 1 Soil Illuminance"
+        unique_id: e2e_plant_1_soil_illuminance
+        state: "18000"
+        unit_of_measurement: "lx"
+      - name: "Plant 1 Soil Conductivity"
+        unique_id: e2e_plant_1_soil_conductivity
+        state: "1200"
+        unit_of_measurement: "µS/cm"
+  # Device roles: template switches with a fixed dummy state (HA 2026.9 only
+  # supports template switches under their own template key).
+  - switch:
+      - name: "Grow Light"
+        unique_id: e2e_grow_light
+        state: "{{ true }}"
+      - name: "Humidifier"
+        unique_id: e2e_humidifier
+        state: "{{ false }}"
+      - name: "Dehumidifier"
+        unique_id: e2e_dehumidifier
+        state: "{{ false }}"
+      - name: "Exhaust Fan"
+        unique_id: e2e_exhaust_fan
+        state: "{{ true }}"
+      - name: "Ventilation Fan"
+        unique_id: e2e_ventilation_fan
+        state: "{{ true }}"
+
+# Writable helper roles (ADR-0002): the phase bridge writes these when the
+# Growth Phase changes.
+input_boolean:
+  growth_phase_early_veg:
+    name: Growth Phase Early Veg
+    initial: false
+  growth_phase_late_veg:
+    name: Growth Phase Late Veg
+    initial: false
+  growth_phase_late_bloom:
+    name: Growth Phase Late Bloom
+    initial: false
+  growth_phase_dry:
+    name: Growth Phase Dry
+    initial: false
+  growth_phase_off:
+    name: Growth Phase Off
+    initial: false
+
+input_number:
+  temperature_lower_threshold:
+    name: Temperature Lower Threshold
+    min: 0
+    max: 40
+    step: 0.5
+    unit_of_measurement: "°C"
+    mode: box
+  temperature_upper_threshold:
+    name: Temperature Upper Threshold
+    min: 0
+    max: 40
+    step: 0.5
+    unit_of_measurement: "°C"
+    mode: box
+  humidity_lower_threshold:
+    name: Humidity Lower Threshold
+    min: 0
+    max: 100
+    step: 1
+    unit_of_measurement: "%"
+    mode: box
+  humidity_upper_threshold:
+    name: Humidity Upper Threshold
+    min: 0
+    max: 100
+    step: 1
+    unit_of_measurement: "%"
+    mode: box
+  vpd_lower_threshold:
+    name: VPD Lower Threshold
+    min: 0
+    max: 3
+    step: 0.1
+    unit_of_measurement: "kPa"
+    mode: box
+  vpd_upper_threshold:
+    name: VPD Upper Threshold
+    min: 0
+    max: 3
+    step: 0.1
+    unit_of_measurement: "kPa"
+    mode: box
+
+input_datetime:
+  light_on_time:
+    name: Light On Time
+    has_time: true
+  light_off_time:
+    name: Light Off Time
+    has_time: true
