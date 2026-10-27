@@ -342,9 +342,10 @@ async def test_options_flow_rejects_invalid_temperature_range(
 
     # Should return a form with errors instead of creating the entry
     assert result["type"] is FlowResultType.FORM
-    assert "errors" in result
-    assert "early-veg_temperature_lower" in result["errors"]
-    assert "early-veg_temperature_upper" in result["errors"]
+    errors = result.get("errors")
+    assert errors is not None
+    assert "early-veg_temperature_lower" in errors
+    assert "early-veg_temperature_upper" in errors
 
 
 async def test_options_flow_rejects_invalid_humidity_range(
@@ -365,9 +366,10 @@ async def test_options_flow_rejects_invalid_humidity_range(
 
     # Should return a form with errors instead of creating the entry
     assert result["type"] is FlowResultType.FORM
-    assert "errors" in result
-    assert "late-veg_humidity_lower" in result["errors"]
-    assert "late-veg_humidity_upper" in result["errors"]
+    errors = result.get("errors")
+    assert errors is not None
+    assert "late-veg_humidity_lower" in errors
+    assert "late-veg_humidity_upper" in errors
 
 
 async def test_options_flow_rejects_invalid_vpd_range(
@@ -388,9 +390,10 @@ async def test_options_flow_rejects_invalid_vpd_range(
 
     # Should return a form with errors instead of creating the entry
     assert result["type"] is FlowResultType.FORM
-    assert "errors" in result
-    assert "late-bloom_vpd_lower" in result["errors"]
-    assert "late-bloom_vpd_upper" in result["errors"]
+    errors = result.get("errors")
+    assert errors is not None
+    assert "late-bloom_vpd_lower" in errors
+    assert "late-bloom_vpd_upper" in errors
 
 
 # Plant tests
@@ -490,8 +493,9 @@ async def test_options_flow_rejects_plant_without_sensors(
 
     # Should return a form with errors
     assert result["type"] is FlowResultType.FORM
-    assert "errors" in result
-    assert "plant_1_name" in result["errors"]
+    errors = result.get("errors")
+    assert errors is not None
+    assert "plant_1_name" in errors
 
 
 async def test_options_flow_allows_plant_with_one_sensor(

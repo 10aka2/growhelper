@@ -3,9 +3,9 @@
 # Boots Home Assistant (ghcr.io/home-assistant/home-assistant, pinned to the
 # version in requirements_test.txt) with the dummy configuration from
 # tests/e2e/config, mounts this repo's custom_components, and drives the
-# integration through its public REST API: onboarding, config flow, options
-# flow with dummy Entity Roles, service calls, Grow Diary file, panel and
-# static assets (see tests/e2e/smoke.py).
+# integration through its public REST API and browser: onboarding, config
+# flows, services, Grow Diary, and rendered panel (tests/e2e/smoke.py and
+# tests/e2e/panel-render.mjs).
 #
 # Triggered like CI: push to master, pull requests, and closed issues
 # (skipped for `wontfix`).
@@ -25,7 +25,7 @@ permissions:
 
 jobs:
   e2e:
-    name: E2E smoke test
+    name: Docker integration and panel E2E
     if: ${{ github.event_name != 'issues' || !contains(github.event.issue.labels.*.name, 'wontfix') }}
     runs-on: ubuntu-latest
     steps:
@@ -33,8 +33,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - name: Install smoke test dependencies
         run: pip install requests websocket-client
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Build the panel bundle
+        run: npm run build
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
       - name: Start the Home Assistant container
         run: docker compose -f tests/e2e/docker-compose.yml up -d
       - name: Run the smoke test
@@ -42,6 +51,12 @@ jobs:
           HA_BASE_URL: http://127.0.0.1:8123
           GITHUB_STEP_SUMMARY: ${{ github.step_summary }}
         run: python tests/e2e/smoke.py
+      - name: Check rendered panel in Chromium
+        env:
+          HA_BASE_URL: http://127.0.0.1:8123
+          HA_USERNAME: growhelper-e2e
+          HA_PASSWORD: growhelper-e2e
+        run: npm run test:e2e:panel
       - name: Show container logs on failure
         if: ${{ failure() }}
         run: docker compose -f tests/e2e/docker-compose.yml logs --tail 200
