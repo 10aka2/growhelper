@@ -22,6 +22,8 @@ REST API — the same surface the frontend panel uses:
    and verify the input helpers written by the phase bridge (ADR-0002).
 7. Verify the Grow Diary file (ADR-0001 format) in the bind-mounted config
    directory.
+8. Publish the panel's documented frontend-config fixture as a Home Assistant
+   state for the browser-level rendered-content test.
 
 Requires the `requests` and `websocket-client` packages.
 Configuration via environment:
@@ -341,7 +343,7 @@ def create_grow_box_entry(session: requests.Session, headers: dict[str, str]) ->
 
 def submit_options(
     session: requests.Session, headers: dict[str, str], entry_id: str
-) -> None:
+) -> dict[str, Any]:
     """Fill the options flow with the dummy Entity Roles and one Plant.
 
     The payload is built from the flow's own schema: Entity Role pickers get
@@ -420,6 +422,32 @@ def submit_options(
     # Options are not exposed via the REST API in HA 2026.9; that they were
     # stored is proven behaviorally in exercise_services: start_grow_run only
     # turns on the phase boolean when the options map the Entity Roles.
+    return payload
+
+
+def publish_panel_config(
+    session: requests.Session, headers: dict[str, str], options: dict[str, Any]
+) -> None:
+    """Expose the configured Grow Box to the panel through its test fixture.
+
+    The panel currently reads its frontend configuration from the documented
+    `sensor.growhelper_config` placeholder. Publishing the options through
+    Home Assistant's state API lets the browser test exercise that loading
+    path without changing private component state.
+    """
+    response = session.post(
+        f"{BASE_URL}/api/states/sensor.growhelper_config",
+        json={
+            "state": "configured",
+            "attributes": {**options, "active_grow_run": SMOKE_RUN_NAME},
+        },
+        headers=headers,
+        timeout=10,
+    )
+    check(
+        response.status_code in (200, 201),
+        f"publishing the panel config fixture failed: {response.status_code} {response.text}",
+    )
 
 
 def assert_panel_registered(token: str) -> None:
@@ -605,6 +633,33 @@ def exercise_services(session: requests.Session, headers: dict[str, str]) -> Non
         f"light off {EXPECTED_LIGHT_OFF}",
     )
 
+    # Restore early-veg so the browser check exercises its German dashboard
+    # label after the late-veg target-profile assertions above.
+    response = session.post(
+        f"{BASE_URL}/api/services/growhelper/set_growth_phase",
+        json={"phase": "early-veg"},
+        headers=headers,
+        timeout=30,
+    )
+    check(
+        response.status_code == 200,
+        f"restoring early-veg failed: {response.status_code} {response.text}",
+    )
+    wait_for_entity(
+        session,
+        headers,
+        "input_boolean.growth_phase_early_veg",
+        state_equals("on"),
+        "restored early-veg phase boolean 'on'",
+    )
+    wait_for_entity(
+        session,
+        headers,
+        "input_boolean.growth_phase_late_veg",
+        state_equals("off"),
+        "restored late-veg phase boolean 'off'",
+    )
+
 
 def assert_grow_diary() -> None:
     """Assert the Grow Diary file exists and follows the ADR-0001 format."""
@@ -621,27 +676,30 @@ def main() -> int:
     """Run all smoke checks; return the process exit code."""
     session = requests.Session()
     try:
-        print(f"[1/7] Waiting for Home Assistant at {BASE_URL}")
+        print(f"[1/8] Waiting for Home Assistant at {BASE_URL}")
         wait_for_ha(session)
 
-        print("[2/7] Completing onboarding and getting an access token")
+        print("[2/8] Completing onboarding and getting an access token")
         token = complete_onboarding(session)
         headers = {"Authorization": f"Bearer {token}"}
 
-        print(f"[3/7] Creating the '{GROW_BOX_NAME}' config entry via the config flow")
+        print(f"[3/8] Creating the '{GROW_BOX_NAME}' config entry via the config flow")
         entry_id = create_grow_box_entry(session, headers)
 
-        print(f"[4/7] Filling the options flow with dummy Entity Roles (entry {entry_id})")
-        submit_options(session, headers, entry_id)
+        print(f"[4/8] Filling the options flow with dummy Entity Roles (entry {entry_id})")
+        options = submit_options(session, headers, entry_id)
 
-        print("[5/7] Checking services, panel and static assets")
+        print("[5/8] Checking services, panel and static assets")
         assert_integration_surface(session, headers, token)
 
-        print("[6/7] Exercising services (start_grow_run, add_diary_entry, set_growth_phase)")
+        print("[6/8] Exercising services (start_grow_run, add_diary_entry, set_growth_phase)")
         exercise_services(session, headers)
 
-        print("[7/7] Checking the Grow Diary file")
+        print("[7/8] Checking the Grow Diary file")
         assert_grow_diary()
+
+        print("[8/8] Publishing the configured panel fixture through Home Assistant")
+        publish_panel_config(session, headers, options)
     except SmokeFailure as error:
         print(f"FAIL: {error}", file=sys.stderr)
         write_step_summary(f"failed — {error}")

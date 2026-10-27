@@ -32,11 +32,17 @@ uv pip install --python .venv/bin/python -r requirements_test.txt
 # Typechecking (config in mypy.ini)
 .venv/bin/python -m mypy custom_components/growhelper tests
 
-# Frontend panel (bundled with esbuild)
+# Frontend panel (run only when intentionally updating the served bundle)
 npm ci
 npm run build
+```
 
+The Docker checks below exercise the committed panel bundle as served by Home
+Assistant. They intentionally do not run `npm run build`.
+
+```bash
 # Docker integration and browser-level panel tests
+npm ci
 npx playwright install chromium
 docker compose -f tests/e2e/docker-compose.yml up -d
 python tests/e2e/smoke.py

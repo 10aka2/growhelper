@@ -6,6 +6,7 @@
 # integration through its public REST API and browser: onboarding, config
 # flows, services, Grow Diary, and rendered panel (tests/e2e/smoke.py and
 # tests/e2e/panel-render.mjs).
+# The browser test consumes the committed served bundle; do not rebuild it here.
 #
 # Triggered like CI: push to master, pull requests, and closed issues
 # (skipped for `wontfix`).
@@ -40,8 +41,6 @@ jobs:
         run: pip install requests websocket-client
       - name: Install frontend dependencies
         run: npm ci
-      - name: Build the panel bundle
-        run: npm run build
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
       - name: Start the Home Assistant container

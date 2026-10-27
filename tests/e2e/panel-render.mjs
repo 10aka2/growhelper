@@ -46,52 +46,18 @@ test("Growhelper panel renders live values and German labels", async () => {
     const panel = page.locator("growhelper-panel");
     await panel.waitFor({ state: "attached", timeout: 30_000 });
 
-    const initialText = await panel.evaluate((element) => element.shadowRoot.textContent);
-    assert.doesNotMatch(
-      initialText,
-      /' \+ | \+ '/,
-      "the live panel must not expose template-concatenation fragments",
-    );
+    await page.waitForFunction(() => {
+      const root = document.querySelector("growhelper-panel")?.shadowRoot;
+      return (
+        root?.querySelector('[data-section="environment"] .value')?.textContent.includes("24.5") &&
+        root?.querySelector('[data-section="vpd"] .vpd-value')?.textContent.includes("1.10") &&
+        root?.querySelector('[data-section="plants"] .plant-name')?.textContent.includes("Plant 1")
+      );
+    }, null, { timeout: 15_000 });
 
     const rendered = await panel.evaluate((element) => {
-      element._config = {
-        canopy_temperature: "sensor.canopy_temperature",
-        canopy_humidity: "sensor.canopy_humidity",
-        vpd_sensor: "sensor.vpd",
-        growth_phase_early_veg: "input_boolean.growth_phase_early_veg",
-        humidifier: "switch.humidifier",
-        humidifier_power: "sensor.humidifier_power",
-        grow_light: "switch.grow_light",
-        grow_light_power: "sensor.grow_light_power",
-        "early-veg_light_on_time": "06:30",
-        "early-veg_light_off_time": "18:30",
-        plant_1_name: "Blue Dream",
-        plant_1_cultivar: "Berry Haze",
-        plant_1_soil_temperature: "sensor.soil_temperature",
-        active_grow_run: "grow_run_20261027",
-      };
-      element._entityStates = {
-        "sensor.canopy_temperature": { state: "24.5", attributes: {} },
-        "sensor.canopy_humidity": { state: "55", attributes: {} },
-        "sensor.vpd": { state: "1.1", attributes: {} },
-        "switch.humidifier": { state: "on", attributes: {} },
-        "sensor.humidifier_power": { state: "115", attributes: {} },
-        "switch.grow_light": { state: "on", attributes: {} },
-        "sensor.grow_light_power": { state: "320", attributes: {} },
-        "sensor.soil_temperature": { state: "21.5", attributes: {} },
-        "input_boolean.growth_phase_early_veg": {
-          state: "on",
-          attributes: {},
-        },
-      };
-      element._growthPhase = "early-veg";
-      element._loadTargetProfile();
-      element._loadPlants();
-      element._loadActiveGrowRun();
-      element._loadDiaryContent();
-      element._render();
-
       const root = element.shadowRoot;
+      const text = (selector) => root.querySelector(selector)?.textContent.trim();
       return {
         text: root.textContent,
         growthPhase: root
@@ -99,26 +65,26 @@ test("Growhelper panel renders live values and German labels", async () => {
           ?.textContent.replace(/\s+/g, " ")
           .trim(),
         temperature: root
-          .querySelector('[data-section="environment"] .value')
-          ?.textContent.replace(/\s+/g, " ")
-          .trim(),
+          .querySelector('[data-section="environment"] .env-card:nth-child(1) .value')
+          ?.textContent.replace(/\s+/g, " ").trim(),
         humidity: root
           .querySelector('[data-section="environment"] .env-card:nth-child(2) .value')
-          ?.textContent.replace(/\s+/g, " ")
-          .trim(),
-        climateState: root
-          .querySelector('[data-section="climate"] .device-state')
-          ?.textContent.trim(),
-        climatePower: root
-          .querySelector('[data-section="climate"] .device-power')
-          ?.textContent.trim(),
-        lightSection: root.querySelector('[data-section="light"] .card')?.textContent,
-        plant: root.querySelector('[data-section="plants"] .plant-name')?.textContent.trim(),
+          ?.textContent.replace(/\s+/g, " ").trim(),
+        vpd: text('[data-section="vpd"] .vpd-value'),
+        climateDevices: Array.from(
+          root.querySelectorAll('[data-section="climate"] .device-card'),
+          (card) => ({
+            name: card.querySelector(".device-name")?.textContent.trim(),
+            state: card.querySelector(".device-state")?.textContent.trim(),
+            power: card.querySelector(".device-power")?.textContent.trim(),
+          }),
+        ),
+        lightSection: text('[data-section="light"] .card'),
+        plant: text('[data-section="plants"] .plant-name'),
         soilTemperature: root
           .querySelector('[data-section="plants"] .plant-sensor-card.has-value .sensor-value')
-          ?.textContent.replace(/\s+/g, " ")
-          .trim(),
-        diary: root.querySelector('[data-section="diary"] .card')?.textContent,
+          ?.textContent.replace(/\s+/g, " ").trim(),
+        diary: text('[data-section="diary"] .card'),
         vpdZones: Array.from(root.querySelectorAll(".vpd-zone-label"), (label) =>
           label.textContent.trim(),
         ),
@@ -127,18 +93,23 @@ test("Growhelper panel renders live values and German labels", async () => {
 
     assert.doesNotMatch(
       rendered.text,
-      /this\._growthPhase|hasCamera \?|this\._formatNumber\(currentValues/,
+      /' \+ | \+ '|this\._growthPhase|hasCamera \?|this\._formatNumber\(currentValues/,
       "the panel must not render JavaScript source fragments as text",
     );
     assert.equal(rendered.growthPhase, "🌱 Frühe Vegetationsphase");
     assert.equal(rendered.temperature, "24.5 °C");
     assert.equal(rendered.humidity, "55.0 %");
-    assert.equal(rendered.climateState, "EIN");
-    assert.equal(rendered.climatePower, "115 W");
-    assert.match(rendered.lightSection, /06:30.*18:30.*EINGESCHALTET.*Leistung: 320 W/s);
-    assert.equal(rendered.plant, "Blue Dream");
-    assert.equal(rendered.soilTemperature, "21.5 °C");
-    assert.match(rendered.diary, /grow_run_20261027.*Pflanzen bewässert/s);
+    assert.equal(rendered.vpd, "1.10");
+    assert.deepEqual(rendered.climateDevices, [
+      { name: "Befeuchter", state: "AUS", power: "0 W" },
+      { name: "Entfeuchter", state: "AUS", power: "0 W" },
+      { name: "Abluft", state: "EIN", power: "45 W" },
+      { name: "Belüftung", state: "EIN", power: "30 W" },
+    ]);
+    assert.match(rendered.lightSection, /08:00.*20:00.*EINGESCHALTET.*Leistung: 240 W/s);
+    assert.equal(rendered.plant, "Plant 1");
+    assert.equal(rendered.soilTemperature, "22.0 °C");
+    assert.match(rendered.diary, /e2e_smoke_run.*10\.10\.2026.*Pflanzen bewässert/s);
     assert.deepEqual(rendered.vpdZones, [
       "Unter-Transpiration",
       "Frühe Vegetationsphase",
