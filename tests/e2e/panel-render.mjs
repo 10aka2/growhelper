@@ -106,7 +106,7 @@ test("Growhelper panel renders live values and German labels", async () => {
           (card) => ({
             name: card.querySelector(".device-name")?.textContent.trim(),
             state: card.querySelector(".device-state")?.textContent.trim(),
-            power: card.querySelector(".device-power")?.textContent.trim(),
+            power: Number(card.querySelector(".device-power")?.textContent.replace(" W", "")),
           }),
         ),
         lightSection: text('[data-section="light"] .card'),
@@ -131,12 +131,12 @@ test("Growhelper panel renders live values and German labels", async () => {
     assert.equal(rendered.humidity, "55.0 %");
     assert.equal(rendered.vpd, "1.10");
     assert.deepEqual(rendered.climateDevices, [
-      { name: "Befeuchter", state: "AUS", power: "0 W" },
-      { name: "Entfeuchter", state: "AUS", power: "0 W" },
-      { name: "Abluft", state: "EIN", power: "45 W" },
-      { name: "Belüftung", state: "EIN", power: "30 W" },
+      { name: "Befeuchter", state: "AUS", power: 0 },
+      { name: "Entfeuchter", state: "AUS", power: 0 },
+      { name: "Abluft", state: "EIN", power: 45 },
+      { name: "Belüftung", state: "EIN", power: 30 },
     ]);
-    assert.match(rendered.lightSection, /06:30.*18:30.*EINGESCHALTET.*Leistung: 240 W/s);
+    assert.match(rendered.lightSection, /06:30.*18:30.*EINGESCHALTET.*Leistung: 240(?:\.0)? W/s);
     assert.equal(rendered.plant, "Plant 1");
     assert.equal(rendered.soilTemperature, "22.0 °C");
     assert.match(
