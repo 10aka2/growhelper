@@ -15,6 +15,14 @@ test("Growhelper panel renders live values and German labels", async () => {
 
   try {
     const page = await browser.newPage();
+    page.on("console", (message) => {
+      if (message.type() === "error") {
+        console.log(`[browser console] ${message.text()}`);
+      }
+    });
+    page.on("pageerror", (error) => {
+      console.log(`[browser page error] ${error.message}`);
+    });
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
 
     const usernameInput = page.locator('input[name="username"]');
@@ -48,14 +56,32 @@ test("Growhelper panel renders live values and German labels", async () => {
 
     await page.waitForFunction(() => {
       const root = document.querySelector("growhelper-panel")?.shadowRoot;
-      return (
-        root?.querySelector('[data-section="environment"] .value')?.textContent.includes("24.5") &&
-        root?.querySelector('[data-section="vpd"] .vpd-value')?.textContent.includes("1.10") &&
-        root?.querySelector('[data-section="plants"] .plant-name')?.textContent.includes("Plant 1") &&
-        root?.querySelector('[data-section="light"] .light-schedule')?.textContent.includes("06:30") &&
-        root?.querySelector('[data-section="diary"] .card')?.textContent.includes("E2E smoke test entry")
-      );
+      return root?.querySelector("h1")?.textContent === "Growhelper";
     }, null, { timeout: 15_000 });
+
+    try {
+      await page.waitForFunction(() => {
+        const root = document.querySelector("growhelper-panel")?.shadowRoot;
+        return root
+          ?.querySelector('[data-section="diary"] .card')
+          ?.textContent.includes("E2E smoke test entry");
+      }, null, { timeout: 15_000 });
+    } catch (error) {
+      const observedValues = await panel.evaluate((element) => {
+        const root = element.shadowRoot;
+        const text = (selector) => root.querySelector(selector)?.textContent.trim();
+        return {
+          growthPhase: text(".growth-phase"),
+          temperature: text('[data-section="environment"] .env-card:nth-child(1) .value'),
+          humidity: text('[data-section="environment"] .env-card:nth-child(2) .value'),
+          vpd: text('[data-section="vpd"] .vpd-value'),
+          lightSchedule: text('[data-section="light"] .light-schedule'),
+          plant: text('[data-section="plants"] .plant-name'),
+          diary: text('[data-section="diary"] .card'),
+        };
+      });
+      throw new Error(`${error.message}; rendered panel values: ${JSON.stringify(observedValues)}`);
+    }
 
     const rendered = await panel.evaluate((element) => {
       const root = element.shadowRoot;
