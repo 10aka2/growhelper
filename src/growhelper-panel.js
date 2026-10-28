@@ -1051,6 +1051,7 @@ var GrowhelperPanel = class extends HTMLElement {
     }
   }
 
+  /** Render each Plant's soil readings so growers can monitor its condition. */
   _renderPlantsSection() {
     // Check if there are any plants configured
     if (!this._plants || this._plants.length === 0) {
@@ -1115,6 +1116,7 @@ var GrowhelperPanel = class extends HTMLElement {
     return div.innerHTML;
   }
 
+  /** Render the active Grow Run and its Grow Diary so entries stay in context. */
   _renderDiarySection() {
     var htmlContent = '';
 
@@ -1389,7 +1391,9 @@ var GrowhelperPanel = class extends HTMLElement {
   }
 
   /** Render configured climate devices without including the grow light. */
-  _renderClimateSection(entities, currentValues) {
+  _renderClimateSection(renderContext) {
+    var entities = renderContext.entities;
+    var currentValues = renderContext.currentValues;
     var devices = [
       ['humidifier', '💦', 'Befeuchter', 'humidifier_power'],
       ['dehumidifier', '🌬️', 'Entfeuchter', 'dehumidifier_power'],
@@ -1407,7 +1411,9 @@ var GrowhelperPanel = class extends HTMLElement {
   }
 
   /** Render the grow-light schedule, state, and optional power reading. */
-  _renderLightSection(entities, currentValues) {
+  _renderLightSection(renderContext) {
+    var entities = renderContext.entities;
+    var currentValues = renderContext.currentValues;
     if (!entities.grow_light) {
       return '<p class="empty">Keine Licht-Steuerung konfiguriert oder verfügbar.</p>';
     }
@@ -1469,6 +1475,10 @@ var GrowhelperPanel = class extends HTMLElement {
       ventilation_fan_power: this._getEntityValue(entities.ventilation_fan_power),
       grow_light_power: this._getEntityValue(entities.grow_light_power)
     };
+    var deviceRenderContext = {
+      entities: entities,
+      currentValues: currentValues
+    };
 
     // Check if entities are configured
     var hasCamera = entities.camera && this._cameraImage;
@@ -1508,13 +1518,13 @@ var GrowhelperPanel = class extends HTMLElement {
       <!-- Climate Section -->
       <section data-section="climate">
         <h2>🌬️ Klima-Geräte</h2>
-        <div class="card">${this._renderClimateSection(entities, currentValues)}</div>
+        <div class="card">${this._renderClimateSection(deviceRenderContext)}</div>
       </section>
 
       <!-- Light Schedule Section -->
       <section data-section="light">
         <h2>💡 Licht-Steuerung</h2>
-        <div class="card">${this._renderLightSection(entities, currentValues)}</div>
+        <div class="card">${this._renderLightSection(deviceRenderContext)}</div>
       </section>
 
       <!-- Plants Section (Issue #9) -->

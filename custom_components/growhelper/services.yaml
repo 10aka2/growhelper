@@ -57,5 +57,5 @@ add_diary_entry:
       example: "15.10.2024"
 
 get_diary_content:
-  name: Get Grow Diary Content
-  description: Return the Markdown content and Grow Run name for the active Grow Run.
+  name: Grow Diary des aktiven Grow Runs
+  description: Gibt den Markdown-Inhalt des aktiven Grow Runs zurück.
