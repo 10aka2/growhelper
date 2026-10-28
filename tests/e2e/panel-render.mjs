@@ -53,19 +53,21 @@ test("Growhelper panel renders live values and German labels", async () => {
 
     const panel = page.locator("growhelper-panel");
     await panel.waitFor({ state: "attached", timeout: 30_000 });
+    const panelElement = await panel.elementHandle();
+    assert.ok(panelElement, "the Growhelper panel element is not available");
 
-    await page.waitForFunction(() => {
-      const root = document.querySelector("growhelper-panel")?.shadowRoot;
+    await page.waitForFunction((element) => {
+      const root = element.shadowRoot;
       return root?.querySelector("h1")?.textContent === "Growhelper";
-    }, null, { timeout: 15_000 });
+    }, panelElement, { timeout: 15_000 });
 
     try {
-      await page.waitForFunction(() => {
-        const root = document.querySelector("growhelper-panel")?.shadowRoot;
+      await page.waitForFunction((element) => {
+        const root = element.shadowRoot;
         return root
           ?.querySelector('[data-section="diary"] .card')
           ?.textContent.includes("E2E smoke test entry");
-      }, null, { timeout: 15_000 });
+      }, panelElement, { timeout: 15_000 });
     } catch (error) {
       const observedValues = await panel.evaluate((element) => {
         const root = element.shadowRoot;
