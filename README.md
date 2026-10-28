@@ -8,7 +8,7 @@ The control loop (automations, VPD alarm, PID controller) stays in Home Assistan
 
 - Sidebar panel "Growhelper" mirroring your existing dashboard layout (overview, light & plants, climate, VPD)
 - One config entry per Grow Box, created through the standard Home Assistant UI
-- Panel skeleton with empty states — the sections are filled by upcoming tickets
+- Dashboard sections for the camera, climate, VPD, light schedule, Plants, and Grow Diary
 
 See `CONTEXT.md` for the domain glossary (Grow Box, Grow Run, Plant, Growth Phase, Target Profile, VPD, …) and `docs/adr/` for accepted architecture decisions.
 
@@ -32,9 +32,22 @@ uv pip install --python .venv/bin/python -r requirements_test.txt
 # Typechecking (config in mypy.ini)
 .venv/bin/python -m mypy custom_components/growhelper tests
 
-# Frontend (Lit panel, bundled with esbuild)
-npm install
+# Frontend panel (run only when intentionally updating the served bundle)
+npm ci
 npm run build
+```
+
+The Docker checks below exercise the committed panel bundle as served by Home
+Assistant. They intentionally do not run `npm run build`.
+
+```bash
+# Docker integration and browser-level panel tests
+npm ci
+npx playwright install chromium
+docker compose -f tests/e2e/docker-compose.yml up -d
+python tests/e2e/smoke.py
+npm run test:e2e:panel
+docker compose -f tests/e2e/docker-compose.yml down
 ```
 
 Code follows the standards in `AGENTS.md` (documented, glossary-based naming, small units) and the domain language in `CONTEXT.md`.

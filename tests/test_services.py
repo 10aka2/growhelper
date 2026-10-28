@@ -206,9 +206,15 @@ async def test_set_growth_phase_writes_phase_booleans_and_target_profile(
         assert state.state == expected
 
     # The Target Profile of late-veg is written to the helpers.
-    assert (
-        float(hass.states.get("input_number.growbox_temperature_lower").state) == 22.0
-    )
-    assert float(hass.states.get("input_number.growbox_vpd_upper").state) == 1.2
-    assert hass.states.get("input_datetime.growbox_light_on").state == "08:00:00"
-    assert hass.states.get("input_datetime.growbox_light_off").state == "20:00:00"
+    temperature_lower = hass.states.get("input_number.growbox_temperature_lower")
+    vpd_upper = hass.states.get("input_number.growbox_vpd_upper")
+    light_on = hass.states.get("input_datetime.growbox_light_on")
+    light_off = hass.states.get("input_datetime.growbox_light_off")
+    assert temperature_lower is not None
+    assert vpd_upper is not None
+    assert light_on is not None
+    assert light_off is not None
+    assert float(temperature_lower.state) == 22.0
+    assert float(vpd_upper.state) == 1.2
+    assert light_on.state == "08:00:00"
+    assert light_off.state == "20:00:00"

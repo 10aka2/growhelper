@@ -26,7 +26,7 @@ start_grow_run:
   fields:
     name:
       name: Run Name
-      description: Optional custom name for the Grow Run (default: date-based name)
+      description: "Optional custom name for the Grow Run (default: date-based name)"
       required: false
       example: my_first_grow_run
 
@@ -41,7 +41,7 @@ add_diary_entry:
       example: "Plants watered"
     plant_tag:
       name: Plant Tag
-      description: The plant tag for the entry (default: "all" for box-level events)
+      description: "The plant tag for the entry (default: 'all' for box-level events)"
       required: false
       default: all
       example: "Plant 1"
@@ -52,6 +52,10 @@ add_diary_entry:
       example: "Watering"
     date:
       name: Date
-      description: Optional date for the entry (default: current date, format DD.MM.YYYY or ISO)
+      description: "Optional date for the entry (default: current date, format DD.MM.YYYY or ISO)"
       required: false
       example: "15.10.2024"
+
+get_diary_content:
+  name: Grow Diary des aktiven Grow Runs
+  description: Gibt den Markdown-Inhalt des aktiven Grow Runs zurück.

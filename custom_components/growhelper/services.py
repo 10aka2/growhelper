@@ -6,6 +6,7 @@ input helpers (ADR-0002) so the existing automations keep working untouched.
 This module also provides the Grow Diary services:
 - start_grow_run: Creates a new Grow Run, marks it active, sets phase to early-veg
 - add_diary_entry: Appends an entry to the active Grow Run's diary file in ADR-0001 format
+- get_diary_content: Returns the active Grow Run's Markdown diary content
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.helpers import service
 
 from .const import (
@@ -25,6 +26,7 @@ from .const import (
     SERVICE_SET_GROWTH_PHASE,
     SERVICE_START_GROW_RUN,
     SERVICE_ADD_DIARY_ENTRY,
+    SERVICE_GET_DIARY_CONTENT,
 )
 from . import grow_diary
 
@@ -51,7 +53,7 @@ async def async_setup_services(
         # Get the options from the config entry
         options = entry.options
         
-        # Build the mapping from Growth Phase to phase boolean entity.
+        # Map each Growth Phase to its configured input helper.
         # The Entity Role keys use underscores (growth_phase_early_veg) while
         # the Growth Phase names use dashes (early-veg); map between the two.
         phase_entities = {
@@ -197,6 +199,7 @@ async def async_setup_services(
         schema=vol.Schema({
             vol.Optional("name"): str,
         }),
+        supports_response=SupportsResponse.OPTIONAL,
     )
     
     async def handle_add_diary_entry(call: ServiceCall) -> dict[str, Any]:
@@ -266,4 +269,28 @@ async def async_setup_services(
             vol.Optional("event_title"): str,
             vol.Optional("date"): str,
         }),
+    )
+
+    async def handle_get_diary_content(call: ServiceCall) -> dict[str, Any]:
+        """Return the Markdown content for the active Grow Run.
+
+        The panel uses this response to render the authoritative diary file
+        instead of maintaining a separate sample copy in browser state.
+        """
+        run_name = await grow_diary.async_get_active_grow_run(hass, entry)
+        if not run_name:
+            return {"run_name": "", "content": ""}
+
+        return {
+            "run_name": run_name,
+            "content": await grow_diary.async_get_diary_content(hass, run_name),
+        }
+
+    service.async_register_admin_service(
+        hass,
+        DOMAIN,
+        SERVICE_GET_DIARY_CONTENT,
+        handle_get_diary_content,
+        schema=vol.Schema({}),
+        supports_response=SupportsResponse.ONLY,
     )
