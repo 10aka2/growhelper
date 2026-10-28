@@ -51,7 +51,9 @@ test("Growhelper panel renders live values and German labels", async () => {
       return (
         root?.querySelector('[data-section="environment"] .value')?.textContent.includes("24.5") &&
         root?.querySelector('[data-section="vpd"] .vpd-value')?.textContent.includes("1.10") &&
-        root?.querySelector('[data-section="plants"] .plant-name')?.textContent.includes("Plant 1")
+        root?.querySelector('[data-section="plants"] .plant-name')?.textContent.includes("Plant 1") &&
+        root?.querySelector('[data-section="light"] .light-schedule')?.textContent.includes("06:30") &&
+        root?.querySelector('[data-section="diary"] .card')?.textContent.includes("E2E smoke test entry")
       );
     }, null, { timeout: 15_000 });
 
@@ -106,10 +108,13 @@ test("Growhelper panel renders live values and German labels", async () => {
       { name: "Abluft", state: "EIN", power: "45 W" },
       { name: "Belüftung", state: "EIN", power: "30 W" },
     ]);
-    assert.match(rendered.lightSection, /08:00.*20:00.*EINGESCHALTET.*Leistung: 240 W/s);
+    assert.match(rendered.lightSection, /06:30.*18:30.*EINGESCHALTET.*Leistung: 240 W/s);
     assert.equal(rendered.plant, "Plant 1");
     assert.equal(rendered.soilTemperature, "22.0 °C");
-    assert.match(rendered.diary, /e2e_smoke_run.*10\.10\.2026.*Pflanzen bewässert/s);
+    assert.match(
+      rendered.diary,
+      /e2e_smoke_run.*18\.10\.2026.*Smoke Test.*E2E smoke test entry/s,
+    );
     assert.deepEqual(rendered.vpdZones, [
       "Unter-Transpiration",
       "Frühe Vegetationsphase",

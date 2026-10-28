@@ -55,3 +55,7 @@ add_diary_entry:
       description: Optional date for the entry (default: current date, format DD.MM.YYYY or ISO)
       required: false
       example: "15.10.2024"
+
+get_diary_content:
+  name: Get Grow Diary Content
+  description: Return the Markdown content and Grow Run name for the active Grow Run.

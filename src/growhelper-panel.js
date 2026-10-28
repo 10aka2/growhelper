@@ -47,7 +47,7 @@ var SOIL_SENSOR_DISPLAY = {
 };
 
 // Grow Diary constants
-var DIARY_ENTRY_ALL_TAG = 'alle';
+var DIARY_ENTRY_ALL_TAG = 'all';
 
 // Static styles for the dashboard rendered in the shadow root.
 var PANEL_STYLES = `<style>
@@ -641,11 +641,11 @@ var GrowhelperPanel = class extends HTMLElement {
     this.attachShadow({ mode: 'open' });
     this._config = {};
     this._entityStates = {};
-    this._historyData = {};
     this._growthPhase = 'off';
     this._targetProfile = {};
     this._cameraImage = '';
     this._activeGrowRun = '';
+    this._diaryRunName = '';
     this._plants = [];
     this._diaryContent = '';
     this._showEntryForm = false;
@@ -662,7 +662,6 @@ var GrowhelperPanel = class extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     this._loadConfigFromHass();
-    this._loadEntityStates();
     this._render();
   }
 
@@ -769,6 +768,7 @@ var GrowhelperPanel = class extends HTMLElement {
     }
   }
 
+  /** Load config and state in dependency order so phase targets match live helpers. */
   _loadConfigFromHass() {
     if (!this._hass || !this._hass.states) return;
 
@@ -794,16 +794,16 @@ var GrowhelperPanel = class extends HTMLElement {
       this._config = {};
     }
 
-    if (this._config) {
-      this._loadTargetProfile();
-      this._loadActiveGrowRun();
-      this._loadPlants();
-      this._loadDiaryContent();
-    }
+    this._loadEntityStates();
+    this._growthPhase = this._getGrowthPhase();
+    this._loadTargetProfile();
+    this._loadActiveGrowRun();
+    this._loadPlants();
+    this._loadDiaryContent();
   }
 
+  /** Load the active Target Profile so thresholds and light times use its values. */
   _loadTargetProfile() {
-    // Load target profile for the current growth phase
     var phase = this._growthPhase || this._config.growth_phase || 'early-veg';
     this._targetProfile = {
       temperature: {
@@ -829,8 +829,8 @@ var GrowhelperPanel = class extends HTMLElement {
     this._activeGrowRun = this._config.active_grow_run || '';
   }
 
+  /** Build the Plant list so each card uses its configured soil sensor group. */
   _loadPlants() {
-    // Load plant configurations from config
     this._plants = [];
 
     for (var plantIndex = 1; plantIndex <= MAX_PLANTS; plantIndex++) {
@@ -857,26 +857,52 @@ var GrowhelperPanel = class extends HTMLElement {
     }
   }
 
+  /** Fetch the active run's Markdown file so the dashboard shows its source-of-truth diary. */
   _loadDiaryContent() {
-    // Load diary content for the active grow run
-    // For now, we'll use a placeholder since loading file content from the browser
-    // requires a service call or API endpoint
-    // In a real implementation, this would call growhelper.get_diary_content service
-
     if (!this._activeGrowRun) {
+      this._diaryRunName = '';
       this._diaryContent = '';
       return;
     }
 
-    // Placeholder: show a sample diary content
-    // In production, this would be loaded from the actual diary file
-    this._diaryContent = this._getSampleDiaryContent();
-  }
+    if (this._diaryRunName === this._activeGrowRun || !this._hass.callService) {
+      return;
+    }
 
-  _getSampleDiaryContent() {
-    // Return sample diary content for demonstration
-    // In a real implementation, this would be loaded from the diary file
-    return '## 10.10.2026\n\n#### Bewässerung\n\n- [alle] Pflanzen bewässert\n\n---\n\n## 11.10.2026\n\n#### Düngung\n\n- [Pflanze 1] Dünger hinzugefügt\n\n---\n';
+    var requestedRunName = this._activeGrowRun;
+    this._diaryRunName = requestedRunName;
+    try {
+      this._hass.callService(
+        'growhelper',
+        'get_diary_content',
+        {},
+        undefined,
+        true,
+        true
+      ).then((response) => {
+        if (this._activeGrowRun !== requestedRunName) {
+          return;
+        }
+
+        var diaryResponse = response.response || response;
+        this._activeGrowRun = diaryResponse.run_name || '';
+        this._diaryRunName = this._activeGrowRun;
+        this._diaryContent = diaryResponse.content || '';
+        this._render();
+      }).catch((error) => {
+        if (this._activeGrowRun !== requestedRunName) {
+          return;
+        }
+
+        this._diaryRunName = '';
+        this._diaryContent = '';
+        console.error('Error loading Grow Diary:', error);
+        this._render();
+      });
+    } catch (error) {
+      this._diaryRunName = '';
+      console.error('Error loading Grow Diary:', error);
+    }
   }
 
   _formatDateForInput(date) {
@@ -936,17 +962,12 @@ var GrowhelperPanel = class extends HTMLElement {
       return; // Don't submit empty notes
     }
 
-    // Call the add_diary_entry service
-    // For now, we'll just log and simulate the behavior
-    console.log('Submitting diary entry:', this._entryFormData);
-
     // Format the entry first (before resetting _entryFormData)
     var newEntry = this._formatDiaryEntry(this._entryFormData);
 
-    // Call the actual service
     this._callHassService('growhelper', 'add_diary_entry', {
       note: this._entryFormData.note,
-      plant_tag: this._entryFormData.plant_tag === DIARY_ENTRY_ALL_TAG ? 'all' : this._entryFormData.plant_tag,
+      plant_tag: this._entryFormData.plant_tag,
       event_title: this._entryFormData.event_title || undefined,
       date: this._entryFormData.date || undefined
     });
@@ -970,7 +991,6 @@ var GrowhelperPanel = class extends HTMLElement {
 
   _formatDiaryEntry(formData) {
     // Format a diary entry according to ADR-0001
-    var date = new Date(formData.date);
     var dateStr = this._formatDateForDisplay(formData.date);
     var dateHeader = '## ' + dateStr;
 
@@ -986,29 +1006,43 @@ var GrowhelperPanel = class extends HTMLElement {
     return entry;
   }
 
+  /** Start a Grow Run and render the run and diary returned by Home Assistant. */
   _startNewGrowRun() {
-    // Start a new grow run via service call
-    console.log('Starting new grow run');
+    var serviceResponse = this._callHassService('growhelper', 'start_grow_run', {}, true);
+    if (!serviceResponse || typeof serviceResponse.then !== 'function') {
+      return;
+    }
 
-    // Call the start_grow_run service
-    this._callHassService('growhelper', 'start_grow_run', {});
+    serviceResponse.then((response) => {
+      var startResponse = response.response || response;
+      if (!startResponse || !startResponse.run_name) {
+        return;
+      }
 
-    // Simulate the behavior - in production, this would reload from the service response
-    // For demo purposes, we'll create a new run name and reset the diary
-    var newRunName = 'grow_run_' + new Date().toISOString().substr(0, 10).replace(/-/g, '');
-    this._activeGrowRun = newRunName;
-    this._diaryContent = this._getSampleDiaryContent();
-    this._growthPhase = 'early-veg';
-
-    this._render();
+      this._activeGrowRun = startResponse.run_name;
+      this._diaryRunName = '';
+      this._diaryContent = '';
+      this._growthPhase = 'early-veg';
+      this._loadTargetProfile();
+      this._loadDiaryContent();
+      this._render();
+    }).catch((error) => {
+      console.error('Error starting Grow Run:', error);
+    });
   }
 
-  _callHassService(domain, service, serviceData) {
-    // Call a Home Assistant service
-    // Correct format: hass.callService(domain, service, serviceData)
+  /** Call a Home Assistant service, optionally requesting its response data. */
+  _callHassService(domain, service, serviceData, returnResponse = false) {
     if (this._hass && this._hass.callService) {
       try {
-        this._hass.callService(domain, service, serviceData);
+        return this._hass.callService(
+          domain,
+          service,
+          serviceData,
+          undefined,
+          true,
+          returnResponse
+        );
       } catch (error) {
         console.error('Error calling service:', domain, service, error);
       }
@@ -1104,6 +1138,7 @@ var GrowhelperPanel = class extends HTMLElement {
     return htmlContent;
   }
 
+  /** Render the diary form with available Plants so entries can be tagged correctly. */
   _renderEntryForm() {
     var plantOptions = this._getPlantTagOptions();
     var optionsHtml = '';
@@ -1189,13 +1224,8 @@ var GrowhelperPanel = class extends HTMLElement {
     return state ? state.state : null;
   }
 
-  _getEntityAttribute(entityId, attribute) {
-    var state = this._getEntityState(entityId);
-    return state ? state.attributes && state.attributes[attribute] : null;
-  }
-
   _getGrowthPhase() {
-    // Check which growth phase boolean is on
+    // Find the active Growth Phase through its configured input helper.
     var phases = ['early-veg', 'late-veg', 'late-bloom', 'dry', 'off'];
     for (var i = 0; i < phases.length; i++) {
       var phase = phases[i];
