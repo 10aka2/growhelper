@@ -16,15 +16,16 @@ REST API — the same surface the frontend panel uses:
 4. Fill the options flow with the dummy Entity Roles from
    tests/e2e/config/configuration.yaml (sensors, switches, input helpers,
    demo camera) and one Plant with a soil sensor group.
-5. Assert the entry is loaded, the four services are registered, the panel
-   is registered (websocket get_panels) and its static JS is served.
-6. Exercise the Grow Run and Growth Phase services: start_grow_run,
+5. Publish the panel's documented frontend-config fixture
+   (sensor.growhelper_config) as a Home Assistant state.
+6. Assert the entry is loaded, the four services are registered, the panel
+   is registered (websocket get_panels), its static JS is served, and the
+   served bundle renders the configured values (tests/e2e/render-check.mjs).
+7. Exercise the Grow Run and Growth Phase services: start_grow_run,
    add_diary_entry and set_growth_phase,
    and verify the input helpers written by the phase bridge (ADR-0002).
-7. Verify the Grow Diary file (ADR-0001 format) in the bind-mounted config
+8. Verify the Grow Diary file (ADR-0001 format) in the bind-mounted config
    directory.
-8. Publish the panel's documented frontend-config fixture as a Home Assistant
-   state for the browser-level rendered-content test.
 
 Requires the `requests` and `websocket-client` packages.
 Configuration via environment:
@@ -39,7 +40,9 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -539,6 +542,50 @@ def assert_integration_surface(
         "growhelper-panel" in response.text,
         "the served panel JS does not look like the growhelper panel bundle",
     )
+    assert_panel_renders(session, headers, response.content)
+
+
+def assert_panel_renders(
+    session: requests.Session, headers: dict[str, str], bundle_source: bytes
+) -> None:
+    """Render the served panel bundle in Node against the live dummy states.
+
+    The panel step now also verifies rendered content (issue #13): the
+    configured values and German labels must appear, and no un-evaluated
+    template fragments may leak into the markup. Runs the committed
+    tests/e2e/render-check.mjs, so `node` must be on PATH (the E2E workflow
+    sets up Node before the smoke test).
+    """
+    states = get_states(session, headers)
+    config_state = next(
+        (s for eid, s in states.items() if eid.startswith("sensor.growhelper_config")),
+        None,
+    )
+    check(config_state is not None, "sensor.growhelper_config state not found")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        bundle_path = Path(tmp) / "growhelper-panel.js"
+        fixture_path = Path(tmp) / "fixture.json"
+        # Write the bundle as raw bytes: response.text may decode the JS as
+        # latin-1 when the server sends no charset, which would mangle the
+        # German umlauts in the labels.
+        bundle_path.write_bytes(bundle_source)
+        fixture_path.write_text(json.dumps({"states": states}), encoding="utf-8")
+        proc = subprocess.run(
+            [
+                "node",
+                str(Path(__file__).resolve().parent / "render-check.mjs"),
+                str(bundle_path),
+                str(fixture_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    check(
+        proc.returncode == 0,
+        f"panel render check failed:\n{proc.stdout}\n{proc.stderr}",
+    )
 
 
 def exercise_services(session: requests.Session, headers: dict[str, str]) -> None:
@@ -700,30 +747,30 @@ def main() -> int:
     """Run all smoke checks; return the process exit code."""
     session = requests.Session()
     try:
-        print(f"[1/8] Waiting for Home Assistant at {BASE_URL}")
+        print(f"[1/9] Waiting for Home Assistant at {BASE_URL}")
         wait_for_ha(session)
 
-        print("[2/8] Completing onboarding and getting an access token")
+        print("[2/9] Completing onboarding and getting an access token")
         token = complete_onboarding(session)
         headers = {"Authorization": f"Bearer {token}"}
 
-        print(f"[3/8] Creating the '{GROW_BOX_NAME}' config entry via the config flow")
+        print(f"[3/9] Creating the '{GROW_BOX_NAME}' config entry via the config flow")
         entry_id = create_grow_box_entry(session, headers)
 
-        print(f"[4/8] Filling the options flow with dummy Entity Roles (entry {entry_id})")
+        print(f"[4/9] Filling the options flow with dummy Entity Roles (entry {entry_id})")
         options = submit_options(session, headers, entry_id)
 
-        print("[5/8] Checking services, panel and static assets")
+        print("[5/9] Publishing the configured panel fixture through Home Assistant")
+        publish_panel_config(session, headers, options)
+
+        print("[6/9] Checking services, panel, static assets and rendered panel content")
         assert_integration_surface(session, headers, token)
 
-        print("[6/8] Exercising services (start_grow_run, add_diary_entry, set_growth_phase)")
+        print("[7/9] Exercising services (start_grow_run, add_diary_entry, set_growth_phase)")
         exercise_services(session, headers)
 
-        print("[7/8] Checking the Grow Diary file")
+        print("[8/9] Checking the Grow Diary file")
         assert_grow_diary()
-
-        print("[8/8] Publishing the configured panel fixture through Home Assistant")
-        publish_panel_config(session, headers, options)
     except SmokeFailure as error:
         print(f"FAIL: {error}", file=sys.stderr)
         write_step_summary(f"failed — {error}")

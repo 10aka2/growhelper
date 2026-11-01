@@ -286,8 +286,10 @@ async def async_setup_services(
             "content": await grow_diary.async_get_diary_content(hass, run_name),
         }
 
-    service.async_register_admin_service(
-        hass,
+    # Read-only: the panel calls this as the logged-in user, who may not be an
+    # admin, so it is a regular service. The mutating services above stay
+    # admin-only on purpose.
+    hass.services.async_register(
         DOMAIN,
         SERVICE_GET_DIARY_CONTENT,
         handle_get_diary_content,

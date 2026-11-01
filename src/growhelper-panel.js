@@ -16,10 +16,22 @@
  */
 
 // VPD reference zone bands (kPa) - from the PRD
+// Canonical German labels for the Growth Phase keys (domain terms from
+// CONTEXT.md). The phase indicator and the VPD zone bands share this map.
+var GROWTH_PHASE_LABELS = {
+  'early-veg': 'Frühe Vegetationsphase',
+  'late-veg': 'Späte Vegetationsphase',
+  'late-bloom': 'Späte Blüte',
+  'dry': 'Trocknung',
+  'off': 'Aus'
+};
+
+// VPD reference zone bands (kPa) - from the PRD. Zones that share a Growth
+// Phase key reuse the canonical label from GROWTH_PHASE_LABELS.
 var VPD_ZONES = {
   'under-transpiration': { max: 0.4, label: 'Unter-Transpiration', color: '#ff0000' },
-  'early-veg': { min: 0.4, max: 0.8, label: 'Frühe Vegetationsphase', color: '#ffa500' },
-  'late-veg': { min: 0.8, max: 1.2, label: 'Späte Vegetationsphase', color: '#ffff00' },
+  'early-veg': { min: 0.4, max: 0.8, label: GROWTH_PHASE_LABELS['early-veg'], color: '#ffa500' },
+  'late-veg': { min: 0.8, max: 1.2, label: GROWTH_PHASE_LABELS['late-veg'], color: '#ffff00' },
   'mid-late-flower': { min: 1.2, max: 1.6, label: 'Mittlere bis späte Blüte', color: '#00ff00' },
   'danger-zone': { min: 1.6, label: 'Gefahrenzone', color: '#ff00ff' }
 };
@@ -676,14 +688,7 @@ var GrowhelperPanel = class extends HTMLElement {
     this._cleanupEventListeners();
   }
 
-  attributeChangedCallback(name, oldValue, newValue) {
-    this._render();
-  }
-
   _setupEventListeners() {
-    // Set global reference for event handlers
-    window.growhelperPanel = this;
-
     // Set up event delegation for form inputs
     var shadowRoot = this.shadowRoot;
     if (shadowRoot) {
@@ -696,11 +701,6 @@ var GrowhelperPanel = class extends HTMLElement {
   }
 
   _cleanupEventListeners() {
-    // Remove global reference
-    if (window.growhelperPanel === this) {
-      delete window.growhelperPanel;
-    }
-
     // Remove event listeners
     var shadowRoot = this.shadowRoot;
     if (shadowRoot && this._boundHandleFormChange && this._boundHandleClick) {
@@ -772,13 +772,9 @@ var GrowhelperPanel = class extends HTMLElement {
   _loadConfigFromHass() {
     if (!this._hass || !this._hass.states) return;
 
-    // Get the growhelper config from hass.states
-    // Config entries are not available in frontend via hass.config.entries
-    // Instead, we need to load config from the growhelper integration's state
-    // For now, try to get config from hass.states['sensor.growhelper_config'] or similar
-    // This is a placeholder - actual config loading needs backend support
-
-    // Try to find config in states (if integration provides it)
+    // Config entries are not exposed to the frontend, so the Grow Box options
+    // are published as the attributes of the sensor.growhelper_config state
+    // and the panel reads its config from there.
     var configState = null;
     for (var entityId in this._hass.states) {
       if (entityId.startsWith('sensor.growhelper_config') || entityId.startsWith('growhelper.config')) {
@@ -927,7 +923,7 @@ var GrowhelperPanel = class extends HTMLElement {
   }
 
   _getPlantTagOptions() {
-    // Get plant tag options: configured plants + "alle"
+    // Plant tag options: the box-level "all" tag plus every configured Plant
     var options = [{ value: DIARY_ENTRY_ALL_TAG, label: 'Alle Pflanzen' }];
 
     for (var i = 0; i < this._plants.length; i++) {
@@ -1268,14 +1264,7 @@ var GrowhelperPanel = class extends HTMLElement {
 
   /** Return the German label corresponding to the active Growth Phase key. */
   _getGrowthPhaseLabel() {
-    var labels = {
-      'early-veg': 'Frühe Vegetationsphase',
-      'late-veg': 'Späte Vegetationsphase',
-      'late-bloom': 'Späte Blüte',
-      dry: 'Trocknung',
-      off: 'Aus'
-    };
-    return labels[this._growthPhase] || labels.off;
+    return GROWTH_PHASE_LABELS[this._growthPhase] || GROWTH_PHASE_LABELS.off;
   }
 
   /** Render the camera content or its German empty state. */
