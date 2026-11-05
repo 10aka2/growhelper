@@ -2,13 +2,15 @@
 
 import pytest
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Context, HomeAssistant
+from homeassistant.exceptions import Unauthorized
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.growhelper.const import (
     DOMAIN,
     GROWTH_PHASES,
+    SERVICE_GET_DIARY_CONTENT,
     SERVICE_SET_GROWTH_PHASE,
 )
 
@@ -206,9 +208,64 @@ async def test_set_growth_phase_writes_phase_booleans_and_target_profile(
         assert state.state == expected
 
     # The Target Profile of late-veg is written to the helpers.
-    assert (
-        float(hass.states.get("input_number.growbox_temperature_lower").state) == 22.0
+    temperature_lower = hass.states.get("input_number.growbox_temperature_lower")
+    vpd_upper = hass.states.get("input_number.growbox_vpd_upper")
+    light_on = hass.states.get("input_datetime.growbox_light_on")
+    light_off = hass.states.get("input_datetime.growbox_light_off")
+    assert temperature_lower is not None
+    assert vpd_upper is not None
+    assert light_on is not None
+    assert light_off is not None
+    assert float(temperature_lower.state) == 22.0
+    assert float(vpd_upper.state) == 1.2
+    assert light_on.state == "08:00:00"
+    assert light_off.state == "20:00:00"
+
+
+async def test_get_diary_content_callable_by_non_admin_user(
+    hass: HomeAssistant,
+) -> None:
+    """get_diary_content is read-only and called by the panel as the logged-in
+    user, so it must not require admin. With no active Grow Run it returns
+    empty content instead of raising Unauthorized (issue #13 review finding)."""
+    await _setup_entry_with_options(hass)
+
+    # The first user created becomes the owner; the second one is a regular
+    # non-admin user, like a panel-only account.
+    await hass.auth.async_create_user("owner")
+    user = await hass.auth.async_create_user("panel-user")
+    assert user is not None
+    assert not user.is_admin
+    context = Context(user_id=user.id)
+
+    result = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_GET_DIARY_CONTENT,
+        {},
+        blocking=True,
+        context=context,
+        return_response=True,
     )
-    assert float(hass.states.get("input_number.growbox_vpd_upper").state) == 1.2
-    assert hass.states.get("input_datetime.growbox_light_on").state == "08:00:00"
-    assert hass.states.get("input_datetime.growbox_light_off").state == "20:00:00"
+    assert result == {"run_name": "", "content": ""}
+
+
+async def test_write_services_still_require_admin(
+    hass: HomeAssistant,
+) -> None:
+    """The mutating services stay admin-only: a non-admin user is rejected."""
+    await _setup_entry_with_options(hass)
+
+    await hass.auth.async_create_user("owner")
+    user = await hass.auth.async_create_user("panel-user")
+    assert user is not None
+    assert not user.is_admin
+    context = Context(user_id=user.id)
+
+    with pytest.raises(Unauthorized):
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_SET_GROWTH_PHASE,
+            {"phase": "late-veg"},
+            blocking=True,
+            context=context,
+        )

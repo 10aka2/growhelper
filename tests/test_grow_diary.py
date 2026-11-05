@@ -56,6 +56,7 @@ def mock_hass():
     hass = MagicMock()
     hass.config.config_dir = "/tmp/test_config"
     hass.services.async_call = AsyncMock()
+    hass.async_add_executor_job = AsyncMock(side_effect=lambda function, *args: function(*args))
     return hass
 
 
@@ -297,23 +298,17 @@ class TestDiaryEntryAppending:
                 mock_file_path.exists.return_value = True
                 mock_get_path.return_value = mock_file_path
                 
-                # Mock file operations
-                with patch("builtins.open", create=True) as mock_open:
-                    mock_file = MagicMock()
-                    mock_file.read.return_value = ""
-                    mock_open.return_value.__enter__.return_value = mock_file
-                    
-                    result = await async_append_diary_entry(
-                        mock_hass,
-                        mock_config_entry,
-                        note="Test note",
-                        plant_tag="Plant 1",
-                        event_title="Test Event",
-                    )
+                mock_file_path.read_text.return_value = ""
+                result = await async_append_diary_entry(
+                    mock_hass,
+                    mock_config_entry,
+                    note="Test note",
+                    plant_tag="Plant 1",
+                    event_title="Test Event",
+                )
                 
                 assert result == mock_file_path
-                # Verify write was called (exact content verification is complex due to mocking)
-                mock_file.write.assert_called_once()
+                mock_file_path.write_text.assert_called_once()
 
 
 class TestStartGrowRun:
@@ -384,12 +379,8 @@ class TestDiaryContentReading:
         mock_file_path.exists.return_value = True
         mock_get_path.return_value = mock_file_path
         
-        with patch("builtins.open", create=True) as mock_open:
-            mock_file = MagicMock()
-            mock_file.read.return_value = "# Test content"
-            mock_open.return_value.__enter__.return_value = mock_file
-            
-            result = await async_get_diary_content(mock_hass, "test_run")
+        mock_file_path.read_text.return_value = "# Test content"
+        result = await async_get_diary_content(mock_hass, "test_run")
         
         assert result == "# Test content"
 
@@ -422,21 +413,17 @@ class TestADR0001FormatCompliance:
         mock_file_path.exists.return_value = True
         mock_get_path.return_value = mock_file_path
         
-        with patch("builtins.open", create=True) as mock_open:
-            mock_file = MagicMock()
-            mock_file.read.return_value = ""
-            mock_open.return_value.__enter__.return_value = mock_file
-            
-            await async_append_diary_entry(
-                mock_hass,
-                mock_config_entry,
-                note="Test note",
-                plant_tag="Plant 1",
-                event_title="Test Event",
-            )
+        mock_file_path.read_text.return_value = ""
+        await async_append_diary_entry(
+            mock_hass,
+            mock_config_entry,
+            note="Test note",
+            plant_tag="Plant 1",
+            event_title="Test Event",
+        )
         
         # Get the written content
-        written_content = mock_file.write.call_args[0][0]
+        written_content = mock_file_path.write_text.call_args[0][0]
         
         # Verify ADR-0001 format elements are present
         assert DIARY_DATE_HEADER_PREFIX in written_content

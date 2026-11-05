@@ -40,9 +40,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
         ]
     )
-    # The frontend loads the panel's web component from the module URL and
-    # creates the registered element. The panel renders the section skeleton
-    # of the user's existing dashboard; later tickets fill the sections.
+    # The frontend loads the web component from the module URL and renders the
+    # Grow Box dashboard sections inside the registered panel.
     try:
         await async_register_panel(
             hass,

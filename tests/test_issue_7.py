@@ -38,6 +38,7 @@ def mock_hass_with_temp_dir(temp_config_dir):
     hass = MagicMock()
     hass.config.config_dir = str(temp_config_dir)
     hass.services.async_call = AsyncMock()
+    hass.async_add_executor_job = AsyncMock(side_effect=lambda function, *args: function(*args))
 
     # async_update_entry must actually update entry.options so that
     # async_get_active_grow_run sees the change (mirrors real HA behaviour).

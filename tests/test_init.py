@@ -65,4 +65,7 @@ async def test_panel_webcomponent_is_served(hass: HomeAssistant, hass_client) ->
         assert heading in body
     # Empty states are shown when no entities are configured
     assert "Keine Kamera konfiguriert" in body
-    assert "customElements.define('growhelper-panel'" in body
+    assert "customElements.define(" in body
+    assert any(
+        f"{quote}growhelper-panel{quote}" in body for quote in ("'", '"')
+    )

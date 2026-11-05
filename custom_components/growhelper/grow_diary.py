@@ -313,9 +313,8 @@ async def async_append_diary_entry(
             f"Diary file for Grow Run '{active_run}' not found at {file_path}"
         )
     
-    # Read existing content
-    with open(file_path, "r", encoding="utf-8") as f:
-        existing_content = f.read()
+    # Keep filesystem access off Home Assistant's event loop.
+    existing_content = await hass.async_add_executor_job(file_path.read_text, "utf-8")
     
     # Build the new entry
     entry_lines = []
@@ -341,9 +340,7 @@ async def async_append_diary_entry(
     
     new_content = existing_content + "\n".join(entry_lines) + "\n"
     
-    # Write the updated content
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(new_content)
+    await hass.async_add_executor_job(file_path.write_text, new_content, "utf-8")
     
     return file_path
 
@@ -428,5 +425,4 @@ async def async_get_diary_content(
             f"Diary file for Grow Run '{run_name}' not found at {file_path}"
         )
     
-    with open(file_path, "r", encoding="utf-8") as f:
-        return f.read()
+    return await hass.async_add_executor_job(file_path.read_text, "utf-8")

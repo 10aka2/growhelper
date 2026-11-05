@@ -16,11 +16,15 @@ REST API — the same surface the frontend panel uses:
 4. Fill the options flow with the dummy Entity Roles from
    tests/e2e/config/configuration.yaml (sensors, switches, input helpers,
    demo camera) and one Plant with a soil sensor group.
-5. Assert the entry is loaded, the three services are registered, the panel
-   is registered (websocket get_panels) and its static JS is served.
-6. Exercise the services: start_grow_run, add_diary_entry, set_growth_phase,
+5. Publish the panel's documented frontend-config fixture
+   (sensor.growhelper_config) as a Home Assistant state.
+6. Assert the entry is loaded, the four services are registered, the panel
+   is registered (websocket get_panels), its static JS is served, and the
+   served bundle renders the configured values (tests/e2e/render-check.mjs).
+7. Exercise the Grow Run and Growth Phase services: start_grow_run,
+   add_diary_entry and set_growth_phase,
    and verify the input helpers written by the phase bridge (ADR-0002).
-7. Verify the Grow Diary file (ADR-0001 format) in the bind-mounted config
+8. Verify the Grow Diary file (ADR-0001 format) in the bind-mounted config
    directory.
 
 Requires the `requests` and `websocket-client` packages.
@@ -36,7 +40,9 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -105,10 +111,15 @@ ROLE_ENTITY_IDS: dict[str, str] = {
 }
 
 # Services the integration registers (services.yaml).
-EXPECTED_SERVICES = ("set_growth_phase", "start_grow_run", "add_diary_entry")
+EXPECTED_SERVICES = (
+    "set_growth_phase",
+    "start_grow_run",
+    "add_diary_entry",
+    "get_diary_content",
+)
 
-# Target Profile defaults the options flow schema offers; the smoke test
-# submits them unchanged, so the phase bridge must write exactly these.
+# Late-veg Target Profile defaults remain unchanged. The early-veg schedule
+# has distinct fixture values so the browser test can detect phase mismatch.
 EXPECTED_TEMPERATURE_LOWER = 20.0
 EXPECTED_VPD_UPPER = 1.2
 EXPECTED_LIGHT_ON = "08:00"
@@ -341,7 +352,7 @@ def create_grow_box_entry(session: requests.Session, headers: dict[str, str]) ->
 
 def submit_options(
     session: requests.Session, headers: dict[str, str], entry_id: str
-) -> None:
+) -> dict[str, Any]:
     """Fill the options flow with the dummy Entity Roles and one Plant.
 
     The payload is built from the flow's own schema: Entity Role pickers get
@@ -405,6 +416,10 @@ def submit_options(
     payload["plant_1_cultivar"] = "Banana Boogie Split"
     for field in ("soil_temperature", "soil_moisture", "soil_illuminance", "soil_conductivity"):
         payload[f"plant_1_{field}"] = role_entity_ids[f"plant_1_{field}"]
+    # Distinct values make the browser check catch loading the fallback or a
+    # different Growth Phase's Target Profile.
+    payload["early-veg_light_on_time"] = "06:30"
+    payload["early-veg_light_off_time"] = "18:30"
 
     response = session.post(
         f"{BASE_URL}/api/config/config_entries/options/flow/{flow['flow_id']}",
@@ -419,7 +434,33 @@ def submit_options(
     )
     # Options are not exposed via the REST API in HA 2026.9; that they were
     # stored is proven behaviorally in exercise_services: start_grow_run only
-    # turns on the phase boolean when the options map the Entity Roles.
+    # activates its input helper when the options map the Entity Roles.
+    return payload
+
+
+def publish_panel_config(
+    session: requests.Session, headers: dict[str, str], options: dict[str, Any]
+) -> None:
+    """Expose the configured Grow Box to the panel through its test fixture.
+
+    The panel currently reads its frontend configuration from the documented
+    `sensor.growhelper_config` placeholder. Publishing the options through
+    Home Assistant's state API lets the browser test exercise that loading
+    path without changing private component state.
+    """
+    response = session.post(
+        f"{BASE_URL}/api/states/sensor.growhelper_config",
+        json={
+            "state": "configured",
+            "attributes": {**options, "active_grow_run": SMOKE_RUN_NAME},
+        },
+        headers=headers,
+        timeout=10,
+    )
+    check(
+        response.status_code in (200, 201),
+        f"publishing the panel config fixture failed: {response.status_code} {response.text}",
+    )
 
 
 def assert_panel_registered(token: str) -> None:
@@ -501,10 +542,54 @@ def assert_integration_surface(
         "growhelper-panel" in response.text,
         "the served panel JS does not look like the growhelper panel bundle",
     )
+    assert_panel_renders(session, headers, response.content)
+
+
+def assert_panel_renders(
+    session: requests.Session, headers: dict[str, str], bundle_source: bytes
+) -> None:
+    """Render the served panel bundle in Node against the live dummy states.
+
+    The panel step now also verifies rendered content (issue #13): the
+    configured values and German labels must appear, and no un-evaluated
+    template fragments may leak into the markup. Runs the committed
+    tests/e2e/render-check.mjs, so `node` must be on PATH (the E2E workflow
+    sets up Node before the smoke test).
+    """
+    states = get_states(session, headers)
+    config_state = next(
+        (s for eid, s in states.items() if eid.startswith("sensor.growhelper_config")),
+        None,
+    )
+    check(config_state is not None, "sensor.growhelper_config state not found")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        bundle_path = Path(tmp) / "growhelper-panel.js"
+        fixture_path = Path(tmp) / "fixture.json"
+        # Write the bundle as raw bytes: response.text may decode the JS as
+        # latin-1 when the server sends no charset, which would mangle the
+        # German umlauts in the labels.
+        bundle_path.write_bytes(bundle_source)
+        fixture_path.write_text(json.dumps({"states": states}), encoding="utf-8")
+        proc = subprocess.run(
+            [
+                "node",
+                str(Path(__file__).resolve().parent / "render-check.mjs"),
+                str(bundle_path),
+                str(fixture_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    check(
+        proc.returncode == 0,
+        f"panel render check failed:\n{proc.stdout}\n{proc.stderr}",
+    )
 
 
 def exercise_services(session: requests.Session, headers: dict[str, str]) -> None:
-    """Call the three services and verify the phase bridge (ADR-0002)."""
+    """Exercise Grow Run and Growth Phase services through Home Assistant."""
     # Remove leftovers from a previous local run so start_grow_run is
     # idempotent (it refuses to overwrite an existing Grow Run).
     diary_file = DIARY_DIR / f"{SMOKE_RUN_NAME}.md"
@@ -522,15 +607,15 @@ def exercise_services(session: requests.Session, headers: dict[str, str]) -> Non
     )
 
     # start_grow_run sets the early-veg phase through the phase bridge
-    # (ADR-0002). The boolean only turns on when the options stored by the
-    # options flow map the Entity Roles, so this also proves the options
+    # (ADR-0002). The helper only turns on when options map the Entity Roles,
+    # so this also proves the options
     # landed. The inner service calls are non-blocking, hence the polling.
     wait_for_entity(
         session,
         headers,
         "input_boolean.growth_phase_early_veg",
         state_equals("on"),
-        "phase boolean 'on'",
+        "early-veg Growth Phase helper 'on'",
     )
 
     response = session.post(
@@ -549,7 +634,7 @@ def exercise_services(session: requests.Session, headers: dict[str, str]) -> Non
         f"add_diary_entry failed: {response.status_code} {response.text}",
     )
 
-    # Switching to late-veg must turn exactly that phase boolean on and write
+    # Switching to late-veg must turn its input helper on and write
     # the Target Profile of the late-veg phase into the input helpers.
     response = session.post(
         f"{BASE_URL}/api/services/growhelper/set_growth_phase",
@@ -567,14 +652,14 @@ def exercise_services(session: requests.Session, headers: dict[str, str]) -> Non
         headers,
         "input_boolean.growth_phase_late_veg",
         state_equals("on"),
-        "phase boolean 'on'",
+        "late-veg Growth Phase helper 'on'",
     )
     wait_for_entity(
         session,
         headers,
         "input_boolean.growth_phase_early_veg",
         state_equals("off"),
-        "phase boolean 'off'",
+        "early-veg Growth Phase helper 'off'",
     )
     wait_for_entity(
         session,
@@ -605,6 +690,47 @@ def exercise_services(session: requests.Session, headers: dict[str, str]) -> Non
         f"light off {EXPECTED_LIGHT_OFF}",
     )
 
+    # Restore early-veg so the browser check exercises its German dashboard
+    # label after the late-veg target-profile assertions above.
+    response = session.post(
+        f"{BASE_URL}/api/services/growhelper/set_growth_phase",
+        json={"phase": "early-veg"},
+        headers=headers,
+        timeout=30,
+    )
+    check(
+        response.status_code == 200,
+        f"restoring early-veg failed: {response.status_code} {response.text}",
+    )
+    wait_for_entity(
+        session,
+        headers,
+        "input_boolean.growth_phase_early_veg",
+        state_equals("on"),
+        "restored early-veg Growth Phase helper 'on'",
+    )
+    wait_for_entity(
+        session,
+        headers,
+        "input_boolean.growth_phase_late_veg",
+        state_equals("off"),
+        "restored late-veg Growth Phase helper 'off'",
+    )
+    wait_for_entity(
+        session,
+        headers,
+        "input_datetime.light_on_time",
+        lambda state: state.startswith("06:30"),
+        "restored early-veg light on time 06:30",
+    )
+    wait_for_entity(
+        session,
+        headers,
+        "input_datetime.light_off_time",
+        lambda state: state.startswith("18:30"),
+        "restored early-veg light off time 18:30",
+    )
+
 
 def assert_grow_diary() -> None:
     """Assert the Grow Diary file exists and follows the ADR-0001 format."""
@@ -621,26 +747,29 @@ def main() -> int:
     """Run all smoke checks; return the process exit code."""
     session = requests.Session()
     try:
-        print(f"[1/7] Waiting for Home Assistant at {BASE_URL}")
+        print(f"[1/9] Waiting for Home Assistant at {BASE_URL}")
         wait_for_ha(session)
 
-        print("[2/7] Completing onboarding and getting an access token")
+        print("[2/9] Completing onboarding and getting an access token")
         token = complete_onboarding(session)
         headers = {"Authorization": f"Bearer {token}"}
 
-        print(f"[3/7] Creating the '{GROW_BOX_NAME}' config entry via the config flow")
+        print(f"[3/9] Creating the '{GROW_BOX_NAME}' config entry via the config flow")
         entry_id = create_grow_box_entry(session, headers)
 
-        print(f"[4/7] Filling the options flow with dummy Entity Roles (entry {entry_id})")
-        submit_options(session, headers, entry_id)
+        print(f"[4/9] Filling the options flow with dummy Entity Roles (entry {entry_id})")
+        options = submit_options(session, headers, entry_id)
 
-        print("[5/7] Checking services, panel and static assets")
+        print("[5/9] Publishing the configured panel fixture through Home Assistant")
+        publish_panel_config(session, headers, options)
+
+        print("[6/9] Checking services, panel, static assets and rendered panel content")
         assert_integration_surface(session, headers, token)
 
-        print("[6/7] Exercising services (start_grow_run, add_diary_entry, set_growth_phase)")
+        print("[7/9] Exercising services (start_grow_run, add_diary_entry, set_growth_phase)")
         exercise_services(session, headers)
 
-        print("[7/7] Checking the Grow Diary file")
+        print("[8/9] Checking the Grow Diary file")
         assert_grow_diary()
     except SmokeFailure as error:
         print(f"FAIL: {error}", file=sys.stderr)

@@ -86,6 +86,7 @@ MAX_PLANTS: int = 3
 SERVICE_SET_GROWTH_PHASE = "set_growth_phase"
 SERVICE_START_GROW_RUN = "start_grow_run"
 SERVICE_ADD_DIARY_ENTRY = "add_diary_entry"
+SERVICE_GET_DIARY_CONTENT = "get_diary_content"
 
 # Grow Diary storage configuration.
 # Diary files are stored under the Home Assistant config directory.
