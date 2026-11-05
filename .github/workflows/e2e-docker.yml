@@ -67,4 +67,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh issue comment ${{ github.event.issue.number }} --body "E2E Docker smoke test: **${{ job.status }}** — [run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+          gh issue comment ${{ github.event.issue.number }} --repo "${{ github.repository }}" --body "E2E Docker smoke test: **${{ job.status }}** — [run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
