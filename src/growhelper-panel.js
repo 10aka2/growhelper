@@ -103,6 +103,14 @@ var PANEL_STYLES = `<style>
           padding: 8px 0;
         }
 
+        .error-banner {
+          background: var(--error-color, #db4437);
+          color: #ffffff;
+          padding: 12px 16px;
+          border-radius: 8px;
+          margin-bottom: 16px;
+        }
+
         /* Growth Phase */
         .growth-phase {
           display: inline-flex;
@@ -660,6 +668,9 @@ var GrowhelperPanel = class extends HTMLElement {
     this._diaryRunName = '';
     this._plants = [];
     this._diaryContent = '';
+    this._diaryDiscoveryDone = false;
+    this._diaryDiscoveryInFlight = false;
+    this._errorMessage = '';
     this._showEntryForm = false;
     this._entryFormData = {
       note: '',
@@ -822,7 +833,12 @@ var GrowhelperPanel = class extends HTMLElement {
   }
 
   _loadActiveGrowRun() {
-    this._activeGrowRun = this._config.active_grow_run || '';
+    // Only override from the config when it actually carries the active run.
+    // The placeholder config does not, so a run set from the backend
+    // (start_grow_run / get_diary_content) must survive hass updates.
+    if (this._config.active_grow_run) {
+      this._activeGrowRun = this._config.active_grow_run;
+    }
   }
 
   /** Build the Plant list so each card uses its configured soil sensor group. */
@@ -853,52 +869,83 @@ var GrowhelperPanel = class extends HTMLElement {
     }
   }
 
+  /** Apply a get_diary_content response; an empty run_name never wipes local state. */
+  _applyDiaryResponse(resp) {
+    if (!resp || !resp.run_name) {
+      return;
+    }
+    this._activeGrowRun = resp.run_name;
+    this._diaryRunName = resp.run_name;
+    this._diaryContent = resp.content || '';
+    this._render();
+  }
+
+  /** Extract a human-readable message from a service-call error object. */
+  _errorText(error) {
+    return error && error.message ? error.message : String(error);
+  }
+
   /** Fetch the active run's Markdown file so the dashboard shows its source-of-truth diary. */
   _loadDiaryContent() {
-    if (!this._activeGrowRun) {
-      this._diaryRunName = '';
-      this._diaryContent = '';
+    if (!this._hass || !this._hass.callService) {
       return;
     }
 
-    if (this._diaryRunName === this._activeGrowRun || !this._hass.callService) {
+    if (!this._activeGrowRun) {
+      // No active run known yet (e.g. after a page reload): ask the backend
+      // via get_diary_content instead of wiping the display on every hass
+      // update. The placeholder config does not carry active_grow_run.
+      // A failed attempt is retried on a later hass update.
+      if (this._diaryDiscoveryDone || this._diaryDiscoveryInFlight) {
+        return;
+      }
+      this._diaryDiscoveryInFlight = true;
+      var discoveryCall = this._callHassService('growhelper', 'get_diary_content', {}, true);
+      if (!discoveryCall || typeof discoveryCall.then !== 'function') {
+        this._diaryDiscoveryInFlight = false;
+        return;
+      }
+      discoveryCall
+        .then((response) => {
+          this._diaryDiscoveryInFlight = false;
+          this._diaryDiscoveryDone = true;
+          this._applyDiaryResponse(response.response || response);
+        })
+        .catch((error) => {
+          this._diaryDiscoveryInFlight = false;
+          this._diaryDiscoveryDone = false;
+          console.error('Error discovering active Grow Run:', error);
+        });
+      return;
+    }
+
+    if (this._diaryRunName === this._activeGrowRun) {
       return;
     }
 
     var requestedRunName = this._activeGrowRun;
     this._diaryRunName = requestedRunName;
-    try {
-      this._hass.callService(
-        'growhelper',
-        'get_diary_content',
-        {},
-        undefined,
-        true,
-        true
-      ).then((response) => {
+    var fetchCall = this._callHassService('growhelper', 'get_diary_content', {}, true);
+    if (!fetchCall || typeof fetchCall.then !== 'function') {
+      return;
+    }
+    fetchCall
+      .then((response) => {
         if (this._activeGrowRun !== requestedRunName) {
           return;
         }
-
-        var diaryResponse = response.response || response;
-        this._activeGrowRun = diaryResponse.run_name || '';
-        this._diaryRunName = this._activeGrowRun;
-        this._diaryContent = diaryResponse.content || '';
-        this._render();
-      }).catch((error) => {
+        this._applyDiaryResponse(response.response || response);
+      })
+      .catch((error) => {
         if (this._activeGrowRun !== requestedRunName) {
           return;
         }
-
+        // Keep the active run and the last known content; retry on a later
+        // hass update by clearing the loaded-run marker.
         this._diaryRunName = '';
-        this._diaryContent = '';
         console.error('Error loading Grow Diary:', error);
         this._render();
       });
-    } catch (error) {
-      this._diaryRunName = '';
-      console.error('Error loading Grow Diary:', error);
-    }
   }
 
   _formatDateForInput(date) {
@@ -961,12 +1008,20 @@ var GrowhelperPanel = class extends HTMLElement {
     // Format the entry first (before resetting _entryFormData)
     var newEntry = this._formatDiaryEntry(this._entryFormData);
 
-    this._callHassService('growhelper', 'add_diary_entry', {
+    this._errorMessage = '';
+    var submitCall = this._callHassService('growhelper', 'add_diary_entry', {
       note: this._entryFormData.note,
       plant_tag: this._entryFormData.plant_tag,
       event_title: this._entryFormData.event_title || undefined,
       date: this._entryFormData.date || undefined
     });
+    if (submitCall && typeof submitCall.catch === 'function') {
+      submitCall.catch((error) => {
+        this._errorMessage = 'Eintrag konnte nicht gespeichert werden: ' + this._errorText(error);
+        this._render();
+        console.error('Error adding diary entry:', error);
+      });
+    }
 
     // Reset form and reload diary
     this._entryFormData = {
@@ -1015,6 +1070,7 @@ var GrowhelperPanel = class extends HTMLElement {
         return;
       }
 
+      this._errorMessage = '';
       this._activeGrowRun = startResponse.run_name;
       this._diaryRunName = '';
       this._diaryContent = '';
@@ -1023,6 +1079,8 @@ var GrowhelperPanel = class extends HTMLElement {
       this._loadDiaryContent();
       this._render();
     }).catch((error) => {
+      this._errorMessage = 'Grow Run konnte nicht gestartet werden: ' + this._errorText(error);
+      this._render();
       console.error('Error starting Grow Run:', error);
     });
   }
@@ -1041,6 +1099,9 @@ var GrowhelperPanel = class extends HTMLElement {
         );
       } catch (error) {
         console.error('Error calling service:', domain, service, error);
+        // Return a rejected promise so callers' .catch handlers (e.g. the
+        // error banner) still attach.
+        return Promise.reject(error);
       }
     } else {
       console.log('Service call (simulated):', domain, service, serviceData);
@@ -1479,6 +1540,7 @@ var GrowhelperPanel = class extends HTMLElement {
     var htmlContent = `${PANEL_STYLES}
 
       <h1>Growhelper</h1>
+      ${this._errorMessage ? `<div class="error-banner">${this._escapeHtml(this._errorMessage)}</div>` : ''}
 
       <!-- Growth Phase Indicator -->
       <div class="growth-phase">

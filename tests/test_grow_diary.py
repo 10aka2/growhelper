@@ -252,6 +252,32 @@ class TestGrowRunManagement:
                 mock_hass, mock_config_entry, custom_name="duplicate_run"
             )
 
+    @pytest.mark.asyncio
+    @patch("custom_components.growhelper.grow_diary._ensure_diary_directory")
+    @patch("custom_components.growhelper.grow_diary._get_diary_file_path")
+    async def test_create_grow_run_twice_same_day_gets_unique_names(
+        self, mock_get_path, mock_ensure_dir, mock_hass, mock_config_entry
+    ):
+        """Two runs started on the same day must not collide: when the
+        date-based generated name already exists, a numeric suffix is appended
+        (issue #18). Explicit custom names still raise on collision."""
+        base = f"grow_run_{datetime.now().strftime('%Y%m%d')}"
+        created: set[str] = set()
+
+        def fake_get_path(hass, name):
+            path = MagicMock(spec=Path)
+            path.exists.side_effect = lambda: name in created
+            path.touch.side_effect = lambda: created.add(name)
+            return path
+
+        mock_get_path.side_effect = fake_get_path
+
+        name1, _ = await async_create_grow_run(mock_hass, mock_config_entry)
+        name2, _ = await async_create_grow_run(mock_hass, mock_config_entry)
+
+        assert name1 == base
+        assert name2 == f"{base}_2"
+
 
 class TestDiaryEntryAppending:
     """Tests for appending diary entries."""
