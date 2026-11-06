@@ -123,6 +123,23 @@ def _generate_run_name() -> str:
     return f"grow_run_{today.strftime('%Y%m%d')}"
 
 
+def _generate_unique_run_name(hass: HomeAssistant) -> str:
+    """Generate a date-based Grow Run name that does not collide with an existing run.
+
+    Starts at 'grow_run_YYYYMMDD' and appends a numeric suffix (_2, _3, ...)
+    while a diary file with that name already exists, so starting several
+    Grow Runs on the same day never fails with a duplicate-name error.
+    """
+    _ensure_diary_directory(hass)
+    base = _generate_run_name()
+    candidate = base
+    suffix = 1
+    while _get_diary_file_path(hass, candidate).exists():
+        suffix += 1
+        candidate = f"{base}_{suffix}"
+    return candidate
+
+
 async def async_get_active_grow_run(hass: HomeAssistant, entry: ConfigEntry) -> str | None:
     """Get the name of the currently active Grow Run.
     
@@ -200,13 +217,14 @@ async def async_create_grow_run(
     Raises:
         ValueError: If a Grow Run with the same name already exists
     """
-    # Determine the final run name
+    # Determine the final run name. Only an explicitly requested name may
+    # collide (that is a real user error); a generated name is made unique.
     if custom_name:
         final_name = custom_name
     elif run_name:
         final_name = run_name
     else:
-        final_name = _generate_run_name()
+        final_name = _generate_unique_run_name(hass)
     
     # Check if a diary file with this name already exists
     _ensure_diary_directory(hass)
