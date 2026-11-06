@@ -12,6 +12,10 @@ The five canonical triage roles map 1:1 to label strings of the same name (`need
 
 Single-context layout: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
+### Branch lifecycle
+
+PRs are squash-merged into `master`. After a PR is merged, its head branch is no longer needed: delete it locally and on the remote. See `docs/agents/branch-lifecycle.md`.
+
 ## Coding standards
 
 All code in this repository is written to be read by humans first:
