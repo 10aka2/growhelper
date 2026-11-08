@@ -97,6 +97,16 @@ GROW_DIARY_FILE_EXTENSION = ".md"
 # The active run's filename is stored in the config entry options.
 CONF_ACTIVE_GROW_RUN = "active_grow_run"
 
+# Attribute key under which the config sensor publishes the current Growth
+# Phase (derived from the phase input helpers, ADR-0002).
+CONF_GROWTH_PHASE = "growth_phase"
+
+
+def growth_phase_role_key(phase: str) -> str:
+    """Map a Growth Phase name (dashes, e.g. 'early-veg') to its Entity Role
+    option key (underscores, e.g. 'growth_phase_early_veg')."""
+    return f"growth_phase_{phase.replace('-', '_')}"
+
 # Default first Grow Run name.
 DEFAULT_FIRST_GROW_RUN_NAME = "grow_run_1"
 

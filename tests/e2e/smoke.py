@@ -16,8 +16,9 @@ REST API — the same surface the frontend panel uses:
 4. Fill the options flow with the dummy Entity Roles from
    tests/e2e/config/configuration.yaml (sensors, switches, input helpers,
    demo camera) and one Plant with a soil sensor group.
-5. Publish the panel's documented frontend-config fixture
-   (sensor.growhelper_config) as a Home Assistant state.
+5. Assert the backend-published config sensor (sensor.growhelper_config)
+   carries the submitted options as attributes (ADR-0003) — no more
+   placeholder state pushed through the REST API.
 6. Assert the entry is loaded, the four services are registered, the panel
    is registered (websocket get_panels), its static JS is served, and the
    served bundle renders the configured values (tests/e2e/render-check.mjs).
@@ -124,6 +125,10 @@ EXPECTED_TEMPERATURE_LOWER = 20.0
 EXPECTED_VPD_UPPER = 1.2
 EXPECTED_LIGHT_ON = "08:00"
 EXPECTED_LIGHT_OFF = "20:00"
+
+# The backend-published config sensor (ADR-0003) and the Growth Phase values.
+CONFIG_SENSOR_ENTITY_ID = "sensor.growhelper_config"
+GROWTH_PHASE_VALUES = ("early-veg", "late-veg", "late-bloom", "dry", "off")
 
 
 class SmokeFailure(AssertionError):
@@ -292,6 +297,78 @@ def wait_for_entity(
     raise SmokeFailure(f"{entity_id} did not reach {description} within {timeout}s")
 
 
+def get_config_sensor(
+    session: requests.Session, headers: dict[str, str]
+) -> dict[str, Any]:
+    """Return the sensor.growhelper_config state dict, or {} when absent."""
+    response = session.get(
+        f"{BASE_URL}/api/states/{CONFIG_SENSOR_ENTITY_ID}", headers=headers, timeout=10
+    )
+    if response.status_code == 404:
+        return {}
+    check(
+        response.status_code == 200,
+        f"reading {CONFIG_SENSOR_ENTITY_ID} failed: {response.status_code} {response.text}",
+    )
+    return response.json()
+
+
+def wait_for_config_sensor(
+    session: requests.Session,
+    headers: dict[str, str],
+    predicate,
+    description: str,
+    timeout: float = 15.0,
+) -> None:
+    """Poll until the config sensor's state dict satisfies the predicate."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        state = get_config_sensor(session, headers)
+        if state and predicate(state):
+            return
+        time.sleep(0.5)
+    raise SmokeFailure(
+        f"{CONFIG_SENSOR_ENTITY_ID} did not reach {description} within {timeout}s"
+    )
+
+
+def wait_for_config_attribute(
+    session: requests.Session,
+    headers: dict[str, str],
+    attribute: str,
+    predicate,
+    description: str,
+    timeout: float = 15.0,
+) -> None:
+    """Poll until an attribute of the config sensor satisfies the predicate.
+
+    The sensor refreshes on config entry updates and phase-helper state
+    changes, which land shortly after the triggering service call returns.
+    """
+    wait_for_config_sensor(
+        session,
+        headers,
+        lambda state: (
+            state.get("attributes", {}).get(attribute) is not None
+            and predicate(state["attributes"][attribute])
+        ),
+        f"attribute {attribute!r} {description}",
+        timeout,
+    )
+
+
+def wait_for_growth_phase(
+    session: requests.Session,
+    headers: dict[str, str],
+    phase: str,
+    timeout: float = 15.0,
+) -> None:
+    """Poll until the config sensor's growth_phase attribute equals `phase`."""
+    wait_for_config_attribute(
+        session, headers, "growth_phase", lambda value: value == phase, repr(phase), timeout
+    )
+
+
 def find_grow_box_entry(
     session: requests.Session, headers: dict[str, str]
 ) -> dict[str, Any]:
@@ -438,28 +515,43 @@ def submit_options(
     return payload
 
 
-def publish_panel_config(
+def assert_config_sensor(
     session: requests.Session, headers: dict[str, str], options: dict[str, Any]
 ) -> None:
-    """Expose the configured Grow Box to the panel through its test fixture.
+    """Assert the backend publishes the Grow Box config as sensor.growhelper_config.
 
-    The panel currently reads its frontend configuration from the documented
-    `sensor.growhelper_config` placeholder. Publishing the options through
-    Home Assistant's state API lets the browser test exercise that loading
-    path without changing private component state.
+    The panel reads its frontend configuration from this sensor's attributes
+    (ADR-0003), so the options submitted through the options flow must appear
+    here — the smoke test no longer pushes a placeholder state through the
+    REST API. Derived attributes: active_grow_run (empty before the first
+    Grow Run) and growth_phase.
     """
-    response = session.post(
-        f"{BASE_URL}/api/states/sensor.growhelper_config",
-        json={
-            "state": "configured",
-            "attributes": {**options, "active_grow_run": SMOKE_RUN_NAME},
-        },
-        headers=headers,
-        timeout=10,
+    wait_for_config_sensor(
+        session,
+        headers,
+        lambda state: state.get("state") == "configured",
+        "state 'configured'",
+    )
+    attributes = get_config_sensor(session, headers).get("attributes", {})
+    # Every submitted option must appear as an attribute (the sensor omits
+    # None-valued optional options, so only non-None values are compared).
+    mismatched = {
+        key: (attributes.get(key), value)
+        for key, value in options.items()
+        if value is not None and attributes.get(key) != value
+    }
+    check(
+        not mismatched,
+        f"config sensor attributes differ from the submitted options: {mismatched}",
     )
     check(
-        response.status_code in (200, 201),
-        f"publishing the panel config fixture failed: {response.status_code} {response.text}",
+        attributes.get("active_grow_run") == "",
+        f"active_grow_run should be empty before the first Grow Run, "
+        f"got {attributes.get('active_grow_run')!r}",
+    )
+    check(
+        attributes.get("growth_phase") in GROWTH_PHASE_VALUES,
+        f"unexpected growth_phase {attributes.get('growth_phase')!r}",
     )
 
 
@@ -606,6 +698,17 @@ def exercise_services(session: requests.Session, headers: dict[str, str]) -> Non
         f"start_grow_run failed: {response.status_code} {response.text}",
     )
 
+    # The config sensor reflects the new active Grow Run and the phase the
+    # bridge set (ADR-0003) — the panel reads both from there in production.
+    wait_for_config_attribute(
+        session,
+        headers,
+        "active_grow_run",
+        lambda value: value == SMOKE_RUN_NAME,
+        f"{SMOKE_RUN_NAME!r}",
+    )
+    wait_for_growth_phase(session, headers, "early-veg")
+
     # start_grow_run sets the early-veg phase through the phase bridge
     # (ADR-0002). The helper only turns on when options map the Entity Roles,
     # so this also proves the options
@@ -689,6 +792,7 @@ def exercise_services(session: requests.Session, headers: dict[str, str]) -> Non
         lambda state: state.startswith(EXPECTED_LIGHT_OFF),
         f"light off {EXPECTED_LIGHT_OFF}",
     )
+    wait_for_growth_phase(session, headers, "late-veg")
 
     # Restore early-veg so the browser check exercises its German dashboard
     # label after the late-veg target-profile assertions above.
@@ -730,6 +834,7 @@ def exercise_services(session: requests.Session, headers: dict[str, str]) -> Non
         lambda state: state.startswith("18:30"),
         "restored early-veg light off time 18:30",
     )
+    wait_for_growth_phase(session, headers, "early-veg")
 
 
 def assert_grow_diary() -> None:
@@ -760,8 +865,8 @@ def main() -> int:
         print(f"[4/9] Filling the options flow with dummy Entity Roles (entry {entry_id})")
         options = submit_options(session, headers, entry_id)
 
-        print("[5/9] Publishing the configured panel fixture through Home Assistant")
-        publish_panel_config(session, headers, options)
+        print("[5/9] Checking the backend-published config sensor (sensor.growhelper_config)")
+        assert_config_sensor(session, headers, options)
 
         print("[6/9] Checking services, panel, static assets and rendered panel content")
         assert_integration_surface(session, headers, token)

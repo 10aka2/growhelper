@@ -783,9 +783,9 @@ var GrowhelperPanel = class extends HTMLElement {
   _loadConfigFromHass() {
     if (!this._hass || !this._hass.states) return;
 
-    // Config entries are not exposed to the frontend, so the Grow Box options
-    // are published as the attributes of the sensor.growhelper_config state
-    // and the panel reads its config from there.
+    // Config entries are not exposed to the frontend, so the backend publishes
+    // the Grow Box options as the attributes of the sensor.growhelper_config
+    // state (ADR-0003) and the panel reads its config from there.
     var configState = null;
     for (var entityId in this._hass.states) {
       if (entityId.startsWith('sensor.growhelper_config') || entityId.startsWith('growhelper.config')) {
@@ -834,8 +834,9 @@ var GrowhelperPanel = class extends HTMLElement {
 
   _loadActiveGrowRun() {
     // Only override from the config when it actually carries the active run.
-    // The placeholder config does not, so a run set from the backend
-    // (start_grow_run / get_diary_content) must survive hass updates.
+    // The sensor carries active_grow_run only while a run is active, so a run
+    // set from the backend (start_grow_run / get_diary_content) must survive
+    // hass updates that arrive before the sensor state does.
     if (this._config.active_grow_run) {
       this._activeGrowRun = this._config.active_grow_run;
     }
@@ -894,8 +895,8 @@ var GrowhelperPanel = class extends HTMLElement {
     if (!this._activeGrowRun) {
       // No active run known yet (e.g. after a page reload): ask the backend
       // via get_diary_content instead of wiping the display on every hass
-      // update. The placeholder config does not carry active_grow_run.
-      // A failed attempt is retried on a later hass update.
+      // update. The config sensor carries active_grow_run only once a run is
+      // active. A failed attempt is retried on a later hass update.
       if (this._diaryDiscoveryDone || this._diaryDiscoveryInFlight) {
         return;
       }
