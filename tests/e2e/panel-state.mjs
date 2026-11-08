@@ -70,8 +70,9 @@ function loadPanelClass() {
   return sandbox.__panelClass;
 }
 
-// The placeholder config state carries no active_grow_run — exactly what the
-// integration's sensor.growhelper_config placeholder provides in production.
+// The config state carries no active_grow_run — the sensor only publishes it
+// once a Grow Run is active (ADR-0003), so this fixture covers the pre-run
+// state the panel must handle via backend discovery.
 function makeHass(callService) {
   return {
     states: {

@@ -13,10 +13,15 @@ from pathlib import Path
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.panel_custom import async_register_panel
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
 from . import services
+
+# Platforms forwarded per config entry: the sensor publishes the Grow Box
+# configuration to the frontend (ADR-0003).
+PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 PANEL_FRONTEND_URL_PATH = "growhelper"
 PANEL_WEBCOMPONENT_NAME = "growhelper-panel"
@@ -28,7 +33,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Growhelper from a config entry: serve, register the panel and services."""
     # Set up the services for this config entry
     await services.async_setup_services(hass, entry)
-    
+
+    # Set up the sensor platform: publishes the Grow Box configuration as
+    # sensor.growhelper_config state attributes for the panel (ADR-0003).
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
     # Serve the panel's web component so the frontend can load it from the
     # module URL registered below.
     await hass.http.async_register_static_paths(
@@ -63,4 +72,4 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a Growhelper config entry."""
-    return True
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

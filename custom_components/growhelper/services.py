@@ -27,6 +27,7 @@ from .const import (
     SERVICE_START_GROW_RUN,
     SERVICE_ADD_DIARY_ENTRY,
     SERVICE_GET_DIARY_CONTENT,
+    growth_phase_role_key,
 )
 from . import grow_diary
 
@@ -57,7 +58,7 @@ async def async_setup_services(
         # The Entity Role keys use underscores (growth_phase_early_veg) while
         # the Growth Phase names use dashes (early-veg); map between the two.
         phase_entities = {
-            phase_name: options.get(f"growth_phase_{phase_name.replace('-', '_')}")
+            phase_name: options.get(growth_phase_role_key(phase_name))
             for phase_name in GROWTH_PHASES
         }
         
