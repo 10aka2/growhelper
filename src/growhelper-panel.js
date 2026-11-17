@@ -800,11 +800,16 @@ var GrowhelperPanel = class extends HTMLElement {
     var service = this._getEntityValue(entityId) === 'on' ? 'turn_off' : 'turn_on';
     var call = this._callHassService(domain, service, { entity_id: entityId }, false);
     if (!call || typeof call.then !== 'function') {
+      // No hass connection (e.g. simulated environment): surface it too.
+      this._errorMessage = 'Gerät konnte nicht geschaltet werden: keine Home-Assistant-Verbindung';
+      this._render();
       return;
     }
     call
       .then(() => {
-        if (this._errorMessage) {
+        // Only clear errors that came from a device toggle — not e.g. a
+        // failed diary submit sharing the same banner.
+        if (this._errorMessage.startsWith('Gerät konnte nicht')) {
           this._errorMessage = '';
           this._render();
         }
@@ -1216,6 +1221,15 @@ var GrowhelperPanel = class extends HTMLElement {
     return div.innerHTML;
   }
 
+  /** Escape a value for use inside a double-quoted HTML attribute.
+   *
+   * _escapeHtml (textContent -> innerHTML) covers & < > but not quotes, so
+   * entity ids interpolated into data-entity-id="..." need this variant.
+   */
+  _escapeAttribute(value) {
+    return this._escapeHtml(value).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
   /** Render the active Grow Run and its Grow Diary so entries stay in context. */
   _renderDiarySection() {
     var htmlContent = '';
@@ -1475,7 +1489,7 @@ var GrowhelperPanel = class extends HTMLElement {
     var isOn = state === 'on';
     var powerMarkup = power === null || power === undefined || power === '' ? '' :
       `<div class="device-power">${this._escapeHtml(power)} W</div>`;
-    return `<div class="device-card" data-action="toggle-device" data-entity-id="${this._escapeHtml(entityId)}" title="Gerät ein-/ausschalten">
+    return `<div class="device-card" data-action="toggle-device" data-entity-id="${this._escapeAttribute(entityId)}" title="Gerät ein-/ausschalten">
       <div class="device-icon">${icon}</div>
       <div class="device-name">${name}</div>
       <div class="device-state ${isOn ? 'on' : 'off'}">${isOn ? 'EIN' : 'AUS'}</div>
@@ -1522,7 +1536,7 @@ var GrowhelperPanel = class extends HTMLElement {
     return `<div class="light-schedule">
       <div class="light-time"><span class="light-time-icon">🌅</span><span class="light-time-value">${this._escapeHtml(lightOn)}</span></div>
       <div class="light-time"><span class="light-time-icon">🌇</span><span class="light-time-value">${this._escapeHtml(lightOff)}</span></div>
-      <div class="light-state ${isOn ? 'on' : 'off'}" data-action="toggle-device" data-entity-id="${this._escapeHtml(entities.grow_light)}" title="Licht ein-/ausschalten">${isOn ? 'EINGESCHALTET' : 'AUSGESCHALTET'}</div>
+      <div class="light-state ${isOn ? 'on' : 'off'}" data-action="toggle-device" data-entity-id="${this._escapeAttribute(entities.grow_light)}" title="Licht ein-/ausschalten">${isOn ? 'EINGESCHALTET' : 'AUSGESCHALTET'}</div>
     </div>${powerMarkup}`;
   }
 

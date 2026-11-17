@@ -153,21 +153,34 @@ test("Growhelper panel renders live values and German labels", async () => {
 
     // Device toggles (issue #28): cards are clickable and switch the device
     // through the generic HA service; the panel re-renders with the new state.
-    const abluftSel = '[data-section="climate"] .device-card';
-    const abluftArgs = { element: panelElement, sel: abluftSel };
+    const exhaustFanSel = '[data-section="climate"] .device-card';
+    const exhaustFanArgs = { element: panelElement, sel: exhaustFanSel };
     await page.waitForFunction(({ element, sel }) => {
       const card = Array.from(
         element.shadowRoot.querySelectorAll(sel),
       ).find((c) => c.textContent.includes("Abluft"));
       return card?.getAttribute("data-action") === "toggle-device";
-    }, abluftArgs, { timeout: 15_000 });
-    await page.locator(abluftSel, { hasText: "Abluft" }).click();
+    }, exhaustFanArgs, { timeout: 15_000 });
+    await page.locator(exhaustFanSel, { hasText: "Abluft" }).click();
     await page.waitForFunction(({ element, sel }) => {
       const card = Array.from(
         element.shadowRoot.querySelectorAll(sel),
       ).find((c) => c.textContent.includes("Abluft"));
       return card?.querySelector(".device-state")?.textContent.trim() === "AUS";
-    }, abluftArgs, { timeout: 15_000 });
+    }, exhaustFanArgs, { timeout: 15_000 });
+
+    // The grow light state element carries the same toggle action; clicking
+    // it must flip EINGESCHALTET -> AUSGESCHALTET.
+    const lightSel = '[data-section="light"] .light-state';
+    const lightArgs = { element: panelElement, sel: lightSel };
+    await page.waitForFunction(({ element, sel }) => {
+      const el = element.shadowRoot.querySelector(sel);
+      return el?.getAttribute("data-action") === "toggle-device";
+    }, lightArgs, { timeout: 15_000 });
+    await page.locator(lightSel).click();
+    await page.waitForFunction(({ element, sel }) => {
+      return element.shadowRoot.querySelector(sel)?.textContent.trim() === "AUSGESCHALTET";
+    }, lightArgs, { timeout: 15_000 });
   } finally {
     await browser.close();
   }
