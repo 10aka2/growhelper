@@ -55,8 +55,10 @@ docker compose -f tests/e2e/docker-compose.yml down
 `tests/e2e/deploy-ha-test.sh` builds the panel bundle, runs the Docker E2E
 locally (port 8124 by default — the local `ha-test` instance occupies 8123),
 and only when the E2E is green copies the whole integration into the ha-test
-config, restarts `ha-test` and verifies the deploy (panel bundle served and
-identical to the repo bundle, no integration errors in the container log).
+config, syncs the dummy `configuration.yaml` as well (so ha-test cannot drift
+to read-only device switches, issue #36), restarts `ha-test` and verifies the
+deploy (panel bundle and configuration served identical to the repo, no
+integration errors in the container log).
 On any failure it exits non-zero and leaves ha-test untouched.
 
 ```bash

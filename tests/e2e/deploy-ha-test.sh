@@ -6,9 +6,11 @@
 # bundle cannot drift) -> local Docker E2E on E2E_PORT (default 8124; ha-test
 # occupies 8123 locally) with reset container state -> smoke test + browser
 # panel test -> tear down the E2E container -> only on success: rsync the whole
-# integration into the ha-test config, restart ha-test, verify (panel bundle
-# served and identical, no integration errors in the container log since the
-# restart).
+# integration into the ha-test config, sync the dummy configuration.yaml too
+# (issue #36: otherwise ha-test can drift to read-only device switches while
+# the E2E stays green), restart ha-test, verify (panel bundle served and
+# identical, configuration.yaml identical, no integration errors in the
+# container log since the restart).
 #
 # Any failure before the deploy exits non-zero and leaves ha-test untouched.
 #
@@ -42,6 +44,8 @@ SETUP_SETTLE_SECONDS=10
 
 PANEL_BUNDLE_REL="custom_components/growhelper/www/growhelper-panel.js"
 PANEL_BUNDLE_URL_PATH="/growhelper_static/growhelper-panel.js"
+# The dummy configuration the E2E container and ha-test both run (issue #36).
+E2E_CONFIG_REL="tests/e2e/config/configuration.yaml"
 HA_TEST_BASE_URL="http://127.0.0.1:$HA_TEST_PORT"
 COMPOSE_BASE="$REPO_ROOT/tests/e2e/docker-compose.yml"
 
@@ -112,12 +116,29 @@ EOF
   OVERRIDE_FILE=""
 }
 
+# Fail fast when the dummy E2E configuration lost its toggleable device
+# switches (issue #36): the panel toggle E2E stays green either way, but
+# ha-test would silently run read-only template switches and panel clicks
+# would become no-ops there.
+check_e2e_config() {
+  local config="$REPO_ROOT/$E2E_CONFIG_REL"
+  [ -f "$config" ] || die "e2e configuration not found: $config"
+  grep -q 'service: input_boolean.turn_on' "$config" \
+    || die "$E2E_CONFIG_REL has no input_boolean-backed device switches — panel toggles would be no-ops on ha-test (issue #36)"
+}
+
 deploy_to_ha_test() {
   log "deploying integration to '$HA_TEST_CONTAINER' (config: $HA_TEST_CONFIG)"
   [ -d "$HA_TEST_CONFIG" ] || die "ha-test config dir not found: $HA_TEST_CONFIG (set HA_TEST_CONFIG)"
   docker inspect "$HA_TEST_CONTAINER" >/dev/null 2>&1 || die "container not found: $HA_TEST_CONTAINER (set HA_TEST_CONTAINER)"
   rsync -a --exclude __pycache__ --delete \
     "$REPO_ROOT/custom_components/growhelper/" "$HA_TEST_CONFIG/custom_components/growhelper/"
+  # Sync the dummy configuration as well (issue #36). The file is
+  # container-owned (root), so copy it via the helper image like the E2E
+  # state reset above; a plain cp as the user fails with permission denied.
+  docker run --rm -v "$HA_TEST_CONFIG:/config" \
+    -v "$REPO_ROOT/$E2E_CONFIG_REL:/deploy-configuration.yaml:ro" \
+    "$HELPER_IMAGE" cp /deploy-configuration.yaml /config/configuration.yaml >/dev/null
   # Anchor the post-deploy log check to this restart, not to a wall-clock window.
   RESTART_SINCE="$(date '+%Y-%m-%dT%H:%M:%S%z')"
   docker restart "$HA_TEST_CONTAINER" >/dev/null
@@ -141,6 +162,13 @@ verify_deploy() {
   served_md5="$(curl -s "$url" | md5sum | cut -d' ' -f1)"
   [ "$repo_md5" = "$served_md5" ] || die "served bundle differs from repo bundle ($served_md5 != $repo_md5)"
 
+  # The synced dummy configuration must match the repo (issue #36); read it
+  # via the helper image because it is container-owned (root).
+  local repo_cfg_md5 deployed_cfg_md5
+  repo_cfg_md5="$(md5sum "$REPO_ROOT/$E2E_CONFIG_REL" | cut -d' ' -f1)"
+  deployed_cfg_md5="$(docker run --rm -v "$HA_TEST_CONFIG:/config" "$HELPER_IMAGE" md5sum /config/configuration.yaml | cut -d' ' -f1)"
+  [ "$repo_cfg_md5" = "$deployed_cfg_md5" ] || die "ha-test configuration.yaml differs from $E2E_CONFIG_REL"
+
   # Only log lines written since the restart count; the standard
   # "custom integration not tested" warning is not an error.
   if docker logs "$HA_TEST_CONTAINER" --since "$RESTART_SINCE" 2>&1 \
@@ -149,6 +177,7 @@ verify_deploy() {
   fi
 
   log "verified: panel bundle HTTP $code, md5 $served_md5 matches repo"
+  log "verified: configuration.yaml matches $E2E_CONFIG_REL (md5 $repo_cfg_md5)"
   log "deployed revision: $(git -C "$REPO_ROOT" rev-parse --short HEAD)"
 }
 
@@ -161,6 +190,7 @@ main() {
     PYTHON="$(command -v python3 || true)"
     [ -n "$PYTHON" ] || die "no python found for the smoke test (set PYTHON)"
   fi
+  check_e2e_config
   build_bundle
   run_e2e
   deploy_to_ha_test
