@@ -150,3 +150,141 @@ test("failed start_grow_run renders a visible error banner", async () => {
     "the error banner is rendered in the panel",
   );
 });
+
+// --- Device toggles (issue #28): device cards call the generic HA services ---
+
+// hass mock with the climate/light Entity Roles mapped and their states set.
+function makeDeviceHass(callService, states) {
+  return {
+    states: {
+      "sensor.growhelper_config": {
+        state: "configured",
+        attributes: {
+          canopy_temperature: "sensor.canopy_temperature",
+          humidifier: "switch.humidifier",
+          dehumidifier: "switch.dehumidifier",
+          exhaust_fan: "switch.exhaust_fan",
+          ventilation_fan: "switch.ventilation_fan",
+          grow_light: "switch.grow_light",
+        },
+      },
+      "sensor.canopy_temperature": { state: "24.5", attributes: {} },
+      ...states,
+    },
+    callService,
+  };
+}
+
+// Minimal fake DOM element carrying data-action/data-entity-id, as the click
+// delegation would find it on a device card.
+function fakeCardTarget(entityId) {
+  return {
+    classList: { contains: () => false },
+    getAttribute: (name) =>
+      name === "data-action" ? "toggle-device" : name === "data-entity-id" ? entityId : null,
+    parentElement: null,
+  };
+}
+
+test("device cards render as toggleable and an 'on' device is turned off", async () => {
+  const Panel = loadPanelClass();
+  const calls = [];
+  const hass = makeDeviceHass(
+    (domain, service, data) => {
+      calls.push({ domain, service, data });
+      return Promise.resolve({});
+    },
+    { "switch.exhaust_fan": { state: "on", attributes: {} } },
+  );
+
+  const panel = new Panel();
+  panel.hass = hass;
+  await flush();
+  await flush();
+
+  assert.ok(
+    panel.shadowRoot.innerHTML.includes('data-action="toggle-device"'),
+    "device cards carry the toggle action",
+  );
+  assert.ok(
+    panel.shadowRoot.innerHTML.includes('data-entity-id="switch.exhaust_fan"'),
+    "device cards carry their entity id",
+  );
+
+  panel._handleClick({
+    target: fakeCardTarget("switch.exhaust_fan"),
+    preventDefault() {},
+    stopPropagation() {},
+  });
+  await flush();
+  await flush();
+
+  // The panel also fires its get_diary_content discovery on hass updates —
+  // only the device toggle call is asserted here. Compared via JSON because
+  // the call args are created inside the panel's vm realm (different Object
+  // prototype), which deepStrictEqual would reject.
+  const toggleCalls = calls.filter((c) => c.domain !== "growhelper");
+  assert.equal(
+    JSON.stringify(toggleCalls),
+    JSON.stringify([
+      { domain: "switch", service: "turn_off", data: { entity_id: "switch.exhaust_fan" } },
+    ]),
+  );
+});
+
+test("an 'off' device is turned on via its own domain", async () => {
+  const Panel = loadPanelClass();
+  const calls = [];
+  const hass = makeDeviceHass(
+    (domain, service, data) => {
+      calls.push({ domain, service, data });
+      return Promise.resolve({});
+    },
+    { "light.grow_light": { state: "off", attributes: {} } },
+  );
+  // grow_light role points at the light entity here
+  hass.states["sensor.growhelper_config"].attributes.grow_light = "light.grow_light";
+
+  const panel = new Panel();
+  panel.hass = hass;
+  await flush();
+  await flush();
+
+  panel._handleButtonAction("toggle-device", fakeCardTarget("light.grow_light"));
+  await flush();
+  await flush();
+
+  const toggleCalls = calls.filter((c) => c.domain !== "growhelper");
+  assert.equal(
+    JSON.stringify(toggleCalls),
+    JSON.stringify([
+      { domain: "light", service: "turn_on", data: { entity_id: "light.grow_light" } },
+    ]),
+  );
+});
+
+test("a failed toggle renders the error banner with the service error", async () => {
+  const Panel = loadPanelClass();
+  const hass = makeDeviceHass(
+    () => Promise.reject({ message: "not authorized" }),
+    { "switch.humidifier": { state: "off", attributes: {} } },
+  );
+
+  const panel = new Panel();
+  panel.hass = hass;
+  await flush();
+  await flush();
+
+  panel._handleButtonAction("toggle-device", fakeCardTarget("switch.humidifier"));
+  await flush();
+  await flush();
+
+  assert.ok(
+    panel._errorMessage.includes("not authorized"),
+    `error message should contain the service error, got: ${panel._errorMessage}`,
+  );
+  assert.ok(
+    panel.shadowRoot.innerHTML.includes("error-banner"),
+    "the error banner is rendered in the panel",
+  );
+});

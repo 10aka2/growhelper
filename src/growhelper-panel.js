@@ -394,6 +394,16 @@ var PANEL_STYLES = `<style>
           text-align: center;
         }
 
+        /* Toggleable devices (issue #28): clickable cards and light state. */
+        .device-card[data-action],
+        .light-state[data-action] {
+          cursor: pointer;
+        }
+
+        .device-card[data-action]:hover {
+          outline: 1px solid var(--primary-color, #03a9f4);
+        }
+
         .device-icon {
           font-size: 24px;
           margin-bottom: 4px;
@@ -740,26 +750,24 @@ var GrowhelperPanel = class extends HTMLElement {
   }
 
   _handleClick(event) {
-    // Handle button clicks via event delegation
+    // Handle clicks via event delegation: any element carrying data-action
+    // (buttons as well as toggleable device cards) dispatches its action.
     var target = event.target;
 
-    // Check if the click was on a button with specific data attributes
     while (target && target !== this.shadowRoot) {
-      if (target.classList.contains('btn-primary') || target.classList.contains('btn-secondary')) {
-        var action = target.getAttribute('data-action');
-        if (action) {
-          this._handleButtonAction(action);
-          event.preventDefault();
-          event.stopPropagation();
-          return;
-        }
+      var action = target.getAttribute ? target.getAttribute('data-action') : null;
+      if (action) {
+        this._handleButtonAction(action, target);
+        event.preventDefault();
+        event.stopPropagation();
+        return;
       }
       target = target.parentElement;
     }
   }
 
-  /** Dispatch a dashboard button action to the matching interaction handler. */
-  _handleButtonAction(action) {
+  /** Dispatch a dashboard action to the matching interaction handler. */
+  _handleButtonAction(action, target) {
     switch (action) {
       case 'toggle-entry-form':
         this._toggleEntryForm();
@@ -770,7 +778,46 @@ var GrowhelperPanel = class extends HTMLElement {
       case 'start-new-run':
         this._startNewGrowRun();
         break;
+      case 'toggle-device': {
+        var entityId = target && target.getAttribute ? target.getAttribute('data-entity-id') : null;
+        if (entityId) {
+          this._toggleDevice(entityId);
+        }
+        break;
+      }
     }
+  }
+
+  /** Toggle a Grow Box device (Entity Role) via its generic HA service (issue #28).
+   *
+   * The domain comes from the entity id, so switch.* and light.* both work.
+   * No optimistic update: the panel re-renders on the next hass update, which
+   * carries the new state. A failed call (e.g. missing permission) is shown
+   * in the error banner.
+   */
+  _toggleDevice(entityId) {
+    var domain = entityId.split('.')[0];
+    var service = this._getEntityValue(entityId) === 'on' ? 'turn_off' : 'turn_on';
+    var call = this._callHassService(domain, service, { entity_id: entityId }, false);
+    if (!call || typeof call.then !== 'function') {
+      // No hass connection (e.g. simulated environment): surface it too.
+      this._errorMessage = 'Gerät konnte nicht geschaltet werden: keine Home-Assistant-Verbindung';
+      this._render();
+      return;
+    }
+    call
+      .then(() => {
+        // Only clear errors that came from a device toggle — not e.g. a
+        // failed diary submit sharing the same banner.
+        if (this._errorMessage.startsWith('Gerät konnte nicht')) {
+          this._errorMessage = '';
+          this._render();
+        }
+      })
+      .catch((error) => {
+        this._errorMessage = 'Gerät konnte nicht geschaltet werden: ' + this._errorText(error);
+        this._render();
+      });
   }
 
   _loadConfig() {
@@ -1174,6 +1221,15 @@ var GrowhelperPanel = class extends HTMLElement {
     return div.innerHTML;
   }
 
+  /** Escape a value for use inside a double-quoted HTML attribute.
+   *
+   * _escapeHtml (textContent -> innerHTML) covers & < > but not quotes, so
+   * entity ids interpolated into data-entity-id="..." need this variant.
+   */
+  _escapeAttribute(value) {
+    return this._escapeHtml(value).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
   /** Render the active Grow Run and its Grow Diary so entries stay in context. */
   _renderDiarySection() {
     var htmlContent = '';
@@ -1428,12 +1484,12 @@ var GrowhelperPanel = class extends HTMLElement {
     <div class="chart-container"><div class="chart-placeholder">VPD-Verlauf (24h)</div></div>`;
   }
 
-  /** Render a climate device and its optional power reading. */
-  _renderDeviceCard(icon, name, state, power) {
+  /** Render a climate device and its optional power reading; clickable to toggle (issue #28). */
+  _renderDeviceCard(icon, name, state, power, entityId) {
     var isOn = state === 'on';
     var powerMarkup = power === null || power === undefined || power === '' ? '' :
       `<div class="device-power">${this._escapeHtml(power)} W</div>`;
-    return `<div class="device-card">
+    return `<div class="device-card" data-action="toggle-device" data-entity-id="${this._escapeAttribute(entityId)}" title="Gerät ein-/ausschalten">
       <div class="device-icon">${icon}</div>
       <div class="device-name">${name}</div>
       <div class="device-state ${isOn ? 'on' : 'off'}">${isOn ? 'EIN' : 'AUS'}</div>
@@ -1457,7 +1513,7 @@ var GrowhelperPanel = class extends HTMLElement {
     }
 
     return `<div class="devices-grid">${devices.map(([key, icon, name, powerKey]) =>
-      this._renderDeviceCard(icon, name, currentValues[key], currentValues[powerKey])
+      this._renderDeviceCard(icon, name, currentValues[key], currentValues[powerKey], entities[key])
     ).join('')}</div>`;
   }
 
@@ -1480,7 +1536,7 @@ var GrowhelperPanel = class extends HTMLElement {
     return `<div class="light-schedule">
       <div class="light-time"><span class="light-time-icon">🌅</span><span class="light-time-value">${this._escapeHtml(lightOn)}</span></div>
       <div class="light-time"><span class="light-time-icon">🌇</span><span class="light-time-value">${this._escapeHtml(lightOff)}</span></div>
-      <div class="light-state ${isOn ? 'on' : 'off'}">${isOn ? 'EINGESCHALTET' : 'AUSGESCHALTET'}</div>
+      <div class="light-state ${isOn ? 'on' : 'off'}" data-action="toggle-device" data-entity-id="${this._escapeAttribute(entities.grow_light)}" title="Licht ein-/ausschalten">${isOn ? 'EINGESCHALTET' : 'AUSGESCHALTET'}</div>
     </div>${powerMarkup}`;
   }
 
