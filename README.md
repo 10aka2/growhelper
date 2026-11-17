@@ -50,4 +50,18 @@ npm run test:e2e:panel
 docker compose -f tests/e2e/docker-compose.yml down
 ```
 
+### Deploy to ha-test after a green E2E
+
+`tests/e2e/deploy-ha-test.sh` builds the panel bundle, runs the Docker E2E
+locally (port 8124 by default — the local `ha-test` instance occupies 8123),
+and only when the E2E is green copies the whole integration into the ha-test
+config, restarts `ha-test` and verifies the deploy (panel bundle served and
+identical to the repo bundle, no integration errors in the container log).
+On any failure it exits non-zero and leaves ha-test untouched.
+
+```bash
+tests/e2e/deploy-ha-test.sh
+# configurable via env: REPO_ROOT, HA_TEST_CONFIG, HA_TEST_CONTAINER, HA_TEST_PORT, E2E_PORT, E2E_CONTAINER, PYTHON
+```
+
 Code follows the standards in `AGENTS.md` (documented, glossary-based naming, small units) and the domain language in `CONTEXT.md`.
