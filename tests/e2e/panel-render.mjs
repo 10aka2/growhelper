@@ -153,20 +153,21 @@ test("Growhelper panel renders live values and German labels", async () => {
 
     // Device toggles (issue #28): cards are clickable and switch the device
     // through the generic HA service; the panel re-renders with the new state.
-    const abluftSelector = '[data-section="climate"] .device-card';
-    await page.waitForFunction((element, sel) => {
+    const abluftSel = '[data-section="climate"] .device-card';
+    const abluftArgs = { element: panelElement, sel: abluftSel };
+    await page.waitForFunction(({ element, sel }) => {
       const card = Array.from(
         element.shadowRoot.querySelectorAll(sel),
       ).find((c) => c.textContent.includes("Abluft"));
       return card?.getAttribute("data-action") === "toggle-device";
-    }, panelElement, abluftSelector, { timeout: 15_000 });
-    await page.locator(abluftSelector, { hasText: "Abluft" }).click();
-    await page.waitForFunction((element, sel) => {
+    }, abluftArgs, { timeout: 15_000 });
+    await page.locator(abluftSel, { hasText: "Abluft" }).click();
+    await page.waitForFunction(({ element, sel }) => {
       const card = Array.from(
         element.shadowRoot.querySelectorAll(sel),
       ).find((c) => c.textContent.includes("Abluft"));
       return card?.querySelector(".device-state")?.textContent.trim() === "AUS";
-    }, panelElement, abluftSelector, { timeout: 15_000 });
+    }, abluftArgs, { timeout: 15_000 });
   } finally {
     await browser.close();
   }
