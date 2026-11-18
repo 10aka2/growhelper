@@ -90,10 +90,9 @@ test("Growhelper panel renders live values and German labels", async () => {
       const text = (selector) => root.querySelector(selector)?.textContent.trim();
       return {
         text: root.textContent,
-        growthPhase: root
-          .querySelector(".growth-phase")
-          ?.textContent.replace(/\s+/g, " ")
-          .trim(),
+        growthPhase:
+          root.querySelector(".growth-phase .phase-select option:checked")?.textContent.trim() ??
+          root.querySelector(".growth-phase span:last-child")?.textContent.trim(),
         temperature: root
           .querySelector('[data-section="environment"] .env-card:nth-child(1) .value')
           ?.textContent.replace(/\s+/g, " ").trim(),
@@ -126,7 +125,7 @@ test("Growhelper panel renders live values and German labels", async () => {
       /' \+ | \+ '|this\._growthPhase|hasCamera \?|this\._formatNumber\(currentValues/,
       "the panel must not render JavaScript source fragments as text",
     );
-    assert.equal(rendered.growthPhase, "🌱 Frühe Vegetationsphase");
+    assert.equal(rendered.growthPhase, "Frühe Vegetationsphase");
     assert.equal(rendered.temperature, "24.5 °C");
     assert.equal(rendered.humidity, "55.0 %");
     assert.equal(rendered.vpd, "1.10");
@@ -181,6 +180,19 @@ test("Growhelper panel renders live values and German labels", async () => {
     await page.waitForFunction(({ element, sel }) => {
       return element.shadowRoot.querySelector(sel)?.textContent.trim() === "AUSGESCHALTET";
     }, lightArgs, { timeout: 15_000 });
+
+    // Growth Phase selector (issue #29): the E2E user is the owner (admin),
+    // so the selector is rendered; changing it calls set_growth_phase and the
+    // indicator follows the new phase via the hass update.
+    const phaseSel = ".growth-phase .phase-select";
+    const phaseArgs = { element: panelElement, sel: phaseSel };
+    await page.waitForFunction(({ element, sel }) => {
+      return element.shadowRoot.querySelector(sel)?.getAttribute("data-action") === "set-phase";
+    }, phaseArgs, { timeout: 15_000 });
+    await page.selectOption(phaseSel, "dry");
+    await page.waitForFunction((element) => {
+      return element.shadowRoot.querySelector(".growth-phase")?.textContent.includes("Trocknung");
+    }, panelElement, { timeout: 15_000 });
   } finally {
     await browser.close();
   }
