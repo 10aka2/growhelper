@@ -26,6 +26,10 @@ var GROWTH_PHASE_LABELS = {
   'off': 'Aus'
 };
 
+// Canonical Growth Phase keys (same order as const.py GROWTH_PHASES); the
+// phase indicator, the phase selector and _getGrowthPhase share this list.
+var GROWTH_PHASE_KEYS = ['early-veg', 'late-veg', 'late-bloom', 'dry', 'off'];
+
 // VPD reference zone bands (kPa) - from the PRD. Zones that share a Growth
 // Phase key reuse the canonical label from GROWTH_PHASE_LABELS.
 var VPD_ZONES = {
@@ -123,6 +127,16 @@ var PANEL_STYLES = `<style>
           font-size: 14px;
           font-weight: bold;
           margin-bottom: 16px;
+        }
+        .growth-phase .phase-select {
+          background: transparent;
+          color: inherit;
+          border: none;
+          font: inherit;
+          cursor: pointer;
+        }
+        .growth-phase .phase-select option {
+          color: #000;
         }
 
         /* Camera Section */
@@ -743,6 +757,13 @@ var GrowhelperPanel = class extends HTMLElement {
       field = target.getAttribute('data-field');
     }
 
+    // The Growth Phase selector switches the phase via its data-action.
+    var changeAction = target.getAttribute ? target.getAttribute('data-action') : null;
+    if (changeAction === 'set-phase') {
+      this._setGrowthPhase(value);
+      return;
+    }
+
     if (field) {
       this._updateFormField(field, value);
       this._render();
@@ -1342,7 +1363,7 @@ var GrowhelperPanel = class extends HTMLElement {
 
   _getGrowthPhase() {
     // Find the active Growth Phase through its configured input helper.
-    var phases = ['early-veg', 'late-veg', 'late-bloom', 'dry', 'off'];
+    var phases = GROWTH_PHASE_KEYS;
     for (var i = 0; i < phases.length; i++) {
       var phase = phases[i];
       var entityKey = 'growth_phase_' + phase.replace(/-/g, '_');
@@ -1383,6 +1404,55 @@ var GrowhelperPanel = class extends HTMLElement {
   /** Return the German label corresponding to the active Growth Phase key. */
   _getGrowthPhaseLabel() {
     return GROWTH_PHASE_LABELS[this._growthPhase] || GROWTH_PHASE_LABELS.off;
+  }
+
+  /** Whether the logged-in user may call the admin-only write services.
+   *
+   * growhelper.set_growth_phase stays admin-only on purpose (issue #29
+   * decision): the panel only offers the phase selector to admins, everyone
+   * else gets the read-only phase indicator.
+   */
+  _isAdmin() {
+    return !!(this._hass && this._hass.user && this._hass.user.is_admin);
+  }
+
+  /** Render the Growth Phase indicator: a selector for admins, plain text otherwise. */
+  _renderGrowthPhaseControl() {
+    if (!this._isAdmin()) {
+      return `<span>${this._escapeHtml(this._getGrowthPhaseLabel())}</span>`;
+    }
+    var options = GROWTH_PHASE_KEYS.map((phase) => {
+      var selected = phase === this._growthPhase ? ' selected' : '';
+      return `<option value="${this._escapeAttribute(phase)}"${selected}>${this._escapeHtml(GROWTH_PHASE_LABELS[phase])}</option>`;
+    }).join('');
+    return `<select class="phase-select" data-action="set-phase" title="Growth Phase wechseln">${options}</select>`;
+  }
+
+  /** Switch the Growth Phase via the admin-only service (issue #29).
+   *
+   * The service applies the Target Profile through the existing ADR-0002
+   * bridge (input helpers); the panel re-renders from the next hass update
+   * (sensor.growhelper_config.growth_phase + helper states), so there is no
+   * optimistic update. Failures surface in the error banner.
+   */
+  _setGrowthPhase(phase) {
+    var call = this._callHassService('growhelper', 'set_growth_phase', { phase: phase }, false);
+    if (!call || typeof call.then !== 'function') {
+      this._errorMessage = 'Growth Phase konnte nicht gewechselt werden: keine Home-Assistant-Verbindung';
+      this._render();
+      return;
+    }
+    call
+      .then(() => {
+        if (this._errorMessage.startsWith('Growth Phase konnte nicht')) {
+          this._errorMessage = '';
+          this._render();
+        }
+      })
+      .catch((error) => {
+        this._errorMessage = 'Growth Phase konnte nicht gewechselt werden: ' + this._errorText(error);
+        this._render();
+      });
   }
 
   /** Render the camera content or its German empty state. */
@@ -1602,7 +1672,7 @@ var GrowhelperPanel = class extends HTMLElement {
       <!-- Growth Phase Indicator -->
       <div class="growth-phase">
         <span>🌱</span>
-        <span>${this._getGrowthPhaseLabel()}</span>
+        ${this._renderGrowthPhaseControl()}
       </div>
 
       <!-- Camera Section -->

@@ -7,6 +7,12 @@
  * - the active Grow Run is discovered from the backend (get_diary_content)
  *   and survives subsequent hass updates (no more state wipe)
  * - a failed start_grow_run renders a visible error banner
+ * - device toggles (issue #28): device cards call the generic HA services
+ *   (turn_on/turn_off of the entity's own domain), failures render the
+ *   error banner
+ * - the admin-only Growth Phase selector (issue #29): admins get the
+ *   <select>, non-admins the read-only label, changes call
+ *   growhelper.set_growth_phase, failures render the error banner
  *
  * Usage: node --test tests/e2e/panel-state.mjs
  */
@@ -287,4 +293,108 @@ test("a failed toggle renders the error banner with the service error", async ()
     panel.shadowRoot.innerHTML.includes("error-banner"),
     "the error banner is rendered in the panel",
   );
+});
+
+// --- Growth Phase selector (issue #29): admin-only, via set_growth_phase ---
+
+// hass mock for the phase selector: admin flag plus one phase helper on.
+function makePhaseHass(callService, isAdmin) {
+  const hass = makeDeviceHass(callService, {
+    "input_boolean.growth_phase_early_veg": { state: "on", attributes: {} },
+  });
+  hass.states["sensor.growhelper_config"].attributes.growth_phase_early_veg =
+    "input_boolean.growth_phase_early_veg";
+  hass.user = { is_admin: isAdmin };
+  return hass;
+}
+
+// Minimal fake <select> target as the change delegation would see it.
+function fakePhaseSelect(value) {
+  return {
+    value,
+    classList: { contains: () => false },
+    getAttribute: (name) => (name === "data-action" ? "set-phase" : null),
+  };
+}
+
+test("an admin sees the phase selector, a non-admin only the read-only label", async () => {
+  const Panel = loadPanelClass();
+
+  const adminPanel = new Panel();
+  adminPanel.hass = makePhaseHass(() => Promise.resolve({}), true);
+  await flush();
+  await flush();
+  assert.ok(
+    adminPanel.shadowRoot.innerHTML.includes('data-action="set-phase"'),
+    "admin gets the phase selector",
+  );
+  assert.ok(
+    adminPanel.shadowRoot.innerHTML.includes('value="early-veg" selected'),
+    "the active phase is preselected",
+  );
+
+  const userPanel = new Panel();
+  userPanel.hass = makePhaseHass(() => Promise.resolve({}), false);
+  await flush();
+  await flush();
+  assert.ok(
+    !userPanel.shadowRoot.innerHTML.includes('data-action="set-phase"'),
+    "non-admin gets no selector (set_growth_phase stays admin-only, issue #29)",
+  );
+  assert.ok(
+    userPanel.shadowRoot.innerHTML.includes("Frühe Vegetationsphase"),
+    "non-admin still sees the current phase label",
+  );
+});
+
+test("changing the phase selector calls growhelper.set_growth_phase", async () => {
+  const Panel = loadPanelClass();
+  const calls = [];
+  const hass = makePhaseHass((domain, service, data) => {
+    calls.push({ domain, service, data });
+    return Promise.resolve({});
+  }, true);
+
+  const panel = new Panel();
+  panel.hass = hass;
+  await flush();
+  await flush();
+
+  panel._handleFormChange({ target: fakePhaseSelect("dry") });
+  await flush();
+  await flush();
+
+  const phaseCalls = calls.filter((c) => c.service === "set_growth_phase");
+  assert.equal(
+    JSON.stringify(phaseCalls),
+    JSON.stringify([
+      { domain: "growhelper", service: "set_growth_phase", data: { phase: "dry" } },
+    ]),
+  );
+});
+
+test("a failed phase change renders the error banner", async () => {
+  const Panel = loadPanelClass();
+  const hass = makePhaseHass(
+    (domain, service) =>
+      service === "set_growth_phase"
+        ? Promise.reject({ message: "not authorized" })
+        : Promise.resolve({}),
+    true,
+  );
+
+  const panel = new Panel();
+  panel.hass = hass;
+  await flush();
+  await flush();
+
+  panel._setGrowthPhase("late-bloom");
+  await flush();
+  await flush();
+
+  assert.ok(
+    panel._errorMessage.includes("not authorized"),
+    `error message should contain the service error, got: ${panel._errorMessage}`,
+  );
+  assert.ok(panel.shadowRoot.innerHTML.includes("error-banner"));
 });
