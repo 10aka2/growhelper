@@ -138,6 +138,10 @@ var PANEL_STYLES = `<style>
         .growth-phase .phase-select option {
           color: #000;
         }
+        .plant-quick-entry {
+          width: 100%;
+          margin-top: 8px;
+        }
 
         /* Camera Section */
         .camera-container {
@@ -806,6 +810,13 @@ var GrowhelperPanel = class extends HTMLElement {
       case 'start-new-run':
         this._startNewGrowRun();
         break;
+      case 'quick-entry': {
+        var plantTag = target && target.getAttribute ? target.getAttribute('data-plant-tag') : null;
+        if (plantTag) {
+          this._openEntryFormForPlant(plantTag);
+        }
+        break;
+      }
       case 'toggle-device': {
         var entityId = target && target.getAttribute ? target.getAttribute('data-entity-id') : null;
         if (entityId) {
@@ -1077,6 +1088,22 @@ var GrowhelperPanel = class extends HTMLElement {
     this._render();
   }
 
+  /** Open the diary entry form with a Plant's tag prefilled (quick entry from a Plant card, issue #31).
+   *
+   * The entry itself still goes through growhelper.add_diary_entry — the
+   * append-only diary (ADR-0001) has no other write path.
+   */
+  _openEntryFormForPlant(plantTag) {
+    this._showEntryForm = true;
+    this._entryFormData = {
+      note: '',
+      plant_tag: plantTag,
+      event_title: '',
+      date: this._formatDateForInput(new Date())
+    };
+    this._render();
+  }
+
   /** Store one diary form field in the local entry form data. */
   _updateFormField(field, value) {
     this._entryFormData[field] = value;
@@ -1243,7 +1270,7 @@ var GrowhelperPanel = class extends HTMLElement {
         htmlContent += '</div><div class="sensor-chart"><div class="chart-placeholder">' + sensorInfo.label + '-Verlauf (24h)</div></div></div>';
       }
 
-      htmlContent += '</div></div>';
+      htmlContent += '<button class="btn btn-secondary plant-quick-entry" data-action="quick-entry" data-plant-tag="' + this._escapeAttribute(plant.name) + '" title="Tagebuch-Eintrag für diese Pflanze">📝 Eintrag</button></div></div>';
     }
 
     htmlContent += '</div>';

@@ -13,6 +13,8 @@
  * - the admin-only Growth Phase selector (issue #29): admins get the
  *   <select>, non-admins the read-only label, changes call
  *   growhelper.set_growth_phase, failures render the error banner
+ * - quick diary entry per Plant card (issue #31): opens the entry form with
+ *   the plant tag prefilled
  *
  * Usage: node --test tests/e2e/panel-state.mjs
  */
@@ -397,4 +399,54 @@ test("a failed phase change renders the error banner", async () => {
     `error message should contain the service error, got: ${panel._errorMessage}`,
   );
   assert.ok(panel.shadowRoot.innerHTML.includes("error-banner"));
+});
+
+// --- Quick diary entry per Plant card (issue #31) ---
+
+test("quick-entry on a plant card opens the diary form with the plant tag prefilled", async () => {
+  const Panel = loadPanelClass();
+  const hass = makeDeviceHass((domain, service) => {
+    if (service === "get_diary_content") {
+      return Promise.resolve({
+        response: { run_name: "grow_run_20261106", content: "## 06.11.2026\n" },
+      });
+    }
+    return Promise.resolve({});
+  }, {});
+  hass.states["sensor.growhelper_config"].attributes.plant_1_name = "Plant 1";
+  hass.states["sensor.growhelper_config"].attributes.plant_1_cultivar = "Banana Boogie Split";
+
+  const panel = new Panel();
+  panel.hass = hass;
+  await flush();
+  await flush();
+
+  assert.ok(
+    panel.shadowRoot.innerHTML.includes('data-action="quick-entry"'),
+    "plant cards carry the quick-entry action",
+  );
+  assert.ok(
+    panel.shadowRoot.innerHTML.includes('data-plant-tag="Plant 1"'),
+    "the quick-entry button carries its plant tag",
+  );
+
+  panel._handleButtonAction("quick-entry", {
+    classList: { contains: () => false },
+    getAttribute: (name) =>
+      name === "data-action" ? "quick-entry" : name === "data-plant-tag" ? "Plant 1" : null,
+    parentElement: null,
+  });
+  await flush();
+  await flush();
+
+  assert.equal(panel._showEntryForm, true, "the entry form is opened");
+  assert.equal(
+    panel._entryFormData.plant_tag,
+    "Plant 1",
+    "the plant tag is prefilled (issue #31)",
+  );
+  assert.ok(
+    panel.shadowRoot.innerHTML.includes('data-action="submit-entry"'),
+    "the entry form is rendered",
+  );
 });

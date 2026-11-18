@@ -193,6 +193,21 @@ test("Growhelper panel renders live values and German labels", async () => {
     await page.waitForFunction((element) => {
       return element.shadowRoot.querySelector(".growth-phase")?.textContent.includes("Trocknung");
     }, panelElement, { timeout: 15_000 });
+
+    // Quick diary entry per plant card (issue #31): the card's entry button
+    // opens the form with the plant tag preselected.
+    const quickEntrySel = ".plant-card .plant-quick-entry";
+    const quickEntryArgs = { element: panelElement, sel: quickEntrySel };
+    await page.waitForFunction(({ element, sel }) => {
+      return element.shadowRoot.querySelector(sel)?.getAttribute("data-action") === "quick-entry";
+    }, quickEntryArgs, { timeout: 15_000 });
+    await page.locator(quickEntrySel).first().click();
+    await page.waitForFunction((element) => {
+      const select = element.shadowRoot.querySelector(
+        '.diary-entry-form select[data-field="plant_tag"]',
+      );
+      return select?.value === "Plant 1";
+    }, panelElement, { timeout: 15_000 });
   } finally {
     await browser.close();
   }
