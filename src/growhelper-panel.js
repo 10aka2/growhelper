@@ -680,6 +680,7 @@ var PANEL_STYLES = `<style>
 
 /** Displays a Grow Box dashboard using the current Home Assistant state. */
 var GrowhelperPanel = class extends HTMLElement {
+  /** Initialize the panel: open shadow root and empty local state. */
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
@@ -712,6 +713,7 @@ var GrowhelperPanel = class extends HTMLElement {
     this._render();
   }
 
+  /** Custom element lifecycle: load config/state, render once, attach delegated listeners. */
   connectedCallback() {
     this._loadConfig();
     this._loadEntityStates();
@@ -719,10 +721,12 @@ var GrowhelperPanel = class extends HTMLElement {
     this._setupEventListeners();
   }
 
+  /** Custom element lifecycle: detach the delegated listeners to avoid leaks. */
   disconnectedCallback() {
     this._cleanupEventListeners();
   }
 
+  /** Attach event delegation (change + click) on the shadow root; bound refs are kept for removal. */
   _setupEventListeners() {
     // Set up event delegation for form inputs
     var shadowRoot = this.shadowRoot;
@@ -735,6 +739,7 @@ var GrowhelperPanel = class extends HTMLElement {
     }
   }
 
+  /** Remove the delegated listeners attached in _setupEventListeners. */
   _cleanupEventListeners() {
     // Remove event listeners
     var shadowRoot = this.shadowRoot;
@@ -746,6 +751,7 @@ var GrowhelperPanel = class extends HTMLElement {
     }
   }
 
+  /** Handle 'change' events via delegation: diary inputs update form fields, the phase selector switches the Growth Phase (issue #29). */
   _handleFormChange(event) {
     // Handle form input changes via event delegation
     var target = event.target;
@@ -770,6 +776,7 @@ var GrowhelperPanel = class extends HTMLElement {
     }
   }
 
+  /** Handle 'click' events via delegation: dispatch the data-action of the nearest actionable ancestor. */
   _handleClick(event) {
     // Handle clicks via event delegation: any element carrying data-action
     // (buttons as well as toggleable device cards) dispatches its action.
@@ -841,6 +848,7 @@ var GrowhelperPanel = class extends HTMLElement {
       });
   }
 
+  /** Load the panel config from hass when available (delegates to _loadConfigFromHass). */
   _loadConfig() {
     if (this._hass && this._hass.states) {
       this._loadConfigFromHass();
@@ -900,6 +908,7 @@ var GrowhelperPanel = class extends HTMLElement {
     };
   }
 
+  /** Load the active Grow Run from the config sensor; keeps the backend-discovered run when the attribute is absent (ADR-0003). */
   _loadActiveGrowRun() {
     // Only override from the config when it actually carries the active run.
     // The sensor carries active_grow_run only while a run is active, so a run
@@ -1017,6 +1026,7 @@ var GrowhelperPanel = class extends HTMLElement {
       });
   }
 
+  /** Format a date as YYYY-MM-DD for input[type="date"]; defaults to today. */
   _formatDateForInput(date) {
     // Format date for input[type="date"] (YYYY-MM-DD)
     if (!date) {
@@ -1028,6 +1038,7 @@ var GrowhelperPanel = class extends HTMLElement {
     return year + '-' + month + '-' + day;
   }
 
+  /** Format a YYYY-MM-DD date string as DD.MM.YYYY for the German diary display. */
   _formatDateForDisplay(dateStr) {
     // Format date for display (DD.MM.YYYY)
     if (!dateStr) return '';
@@ -1038,6 +1049,7 @@ var GrowhelperPanel = class extends HTMLElement {
     return day + '.' + month + '.' + year;
   }
 
+  /** Plant tag options for the diary form: the box-level "all" tag plus every configured Plant. */
   _getPlantTagOptions() {
     // Plant tag options: the box-level "all" tag plus every configured Plant
     var options = [{ value: DIARY_ENTRY_ALL_TAG, label: 'Alle Pflanzen' }];
@@ -1050,6 +1062,7 @@ var GrowhelperPanel = class extends HTMLElement {
     return options;
   }
 
+  /** Show/hide the diary entry form; closing it resets the form fields. */
   _toggleEntryForm() {
     this._showEntryForm = !this._showEntryForm;
     // Reset form when closing
@@ -1064,10 +1077,12 @@ var GrowhelperPanel = class extends HTMLElement {
     this._render();
   }
 
+  /** Store one diary form field in the local entry form data. */
   _updateFormField(field, value) {
     this._entryFormData[field] = value;
   }
 
+  /** Submit the diary entry via growhelper.add_diary_entry (append-only diary, ADR-0001); empty notes are ignored. */
   _submitDiaryEntry() {
     // Submit the diary entry via service call
     if (!this._entryFormData.note.trim()) {
@@ -1109,6 +1124,7 @@ var GrowhelperPanel = class extends HTMLElement {
     this._render();
   }
 
+  /** Format the diary form data into the markdown entry shape defined by ADR-0001. */
   _formatDiaryEntry(formData) {
     // Format a diary entry according to ADR-0001
     var dateStr = this._formatDateForDisplay(formData.date);
@@ -1235,6 +1251,7 @@ var GrowhelperPanel = class extends HTMLElement {
     return htmlContent;
   }
 
+  /** Escape text for HTML interpolation (textContent -> innerHTML); does not escape quotes — use _escapeAttribute inside attributes. */
   _escapeHtml(text) {
     if (!text) return '';
     var div = document.createElement('div');
@@ -1289,6 +1306,7 @@ var GrowhelperPanel = class extends HTMLElement {
     return '<div class="entry-form-container"><div class="form-group"><label>Datum:</label><input type="date" class="diary-input" data-field="date" value="' + this._entryFormData.date + '"></div><div class="form-group"><label>Ereignis (optional):</label><input type="text" class="diary-input" data-field="event_title" value="' + this._escapeHtml(this._entryFormData.event_title) + '" placeholder="z.B. Bewässerung, Düngung"></div><div class="form-group"><label>Pflanze:</label><select class="diary-input" data-field="plant_tag">' + optionsHtml + '</select></div><div class="form-group"><label>Notiz:</label><textarea class="diary-input" data-field="note" placeholder="Was ist passiert?" rows="3">' + this._escapeHtml(this._entryFormData.note) + '</textarea></div><div class="form-actions"><button class="btn btn-primary" data-action="submit-entry">✅ Eintrag hinzufügen</button></div></div>';
   }
 
+  /** Render diary markdown (headings, bold, lists, paragraphs) to HTML; deliberately small, no external markdown library in the bundle. */
   _renderMarkdown(content) {
     // Simple markdown rendering for the diary
     // In a real implementation, we'd use a proper markdown library
@@ -1328,6 +1346,7 @@ var GrowhelperPanel = class extends HTMLElement {
     return safeContent;
   }
 
+  /** Snapshot all hass states into _entityStates so each render reads a consistent view. */
   _loadEntityStates() {
     if (!this._hass || !this._hass.states) return;
 
@@ -1341,6 +1360,7 @@ var GrowhelperPanel = class extends HTMLElement {
     this._loadCameraImage();
   }
 
+  /** Cache the camera entity's current image (entity_picture) for the camera section. */
   _loadCameraImage() {
     if (!this._config.camera) return;
 
@@ -1352,15 +1372,18 @@ var GrowhelperPanel = class extends HTMLElement {
     }
   }
 
+  /** Return the cached state object for an entity id (undefined when unknown). */
   _getEntityState(entityId) {
     return this._entityStates[entityId];
   }
 
+  /** Return an entity's state value (e.g. 'on'/'off'), or null when the entity is unknown. */
   _getEntityValue(entityId) {
     var state = this._getEntityState(entityId);
     return state ? state.state : null;
   }
 
+  /** Resolve the active Growth Phase from its configured input helper (ADR-0002); 'off' when none is on. */
   _getGrowthPhase() {
     // Find the active Growth Phase through its configured input helper.
     var phases = GROWTH_PHASE_KEYS;
@@ -1375,17 +1398,20 @@ var GrowhelperPanel = class extends HTMLElement {
     return 'off';
   }
 
+  /** CSS transform for the configured camera rotation. */
   _getCameraRotationStyle() {
     var rotation = this._config.camera_rotation || '0';
     return CAMERA_ROTATION_STYLES[rotation] || 'rotate(0deg)';
   }
 
+  /** Whether a value lies inside the Target Profile range; null when value or bounds are missing. */
   _isInRange(value, min, max) {
     if (value === null || value === undefined) return null;
     if (min === null || max === null) return null;
     return value >= min && value <= max;
   }
 
+  /** Parse a state value to float; null for unavailable/unknown/non-numeric states. */
   _safeParseFloat(value) {
     // Safely parse float, return null for invalid values (unavailable, unknown, etc.)
     if (value === null || value === undefined || value === 'unavailable' || value === 'unknown') {
@@ -1395,6 +1421,7 @@ var GrowhelperPanel = class extends HTMLElement {
     return isNaN(num) ? null : num;
   }
 
+  /** Format a numeric state with fixed decimals for display; '--' when unavailable. */
   _formatNumber(value, decimals) {
     if (value === null || value === undefined) return '--';
     var num = this._safeParseFloat(value);
